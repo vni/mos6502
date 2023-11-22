@@ -22,23 +22,13 @@ mod Flags {
 }
 
 mod opcodes {
-    // nop
-    pub const NOP_EA: u8 = 0xEA;
-
-    // increment
-    pub const INX_E8: u8 = 0xE8;
-    pub const INY_C8: u8 = 0xC8;
-    pub const DEX_CA: u8 = 0xCA;
-    pub const DEY_88: u8 = 0x88;
-
-    // flags
-    pub const CLC_18: u8 = 0x18;
-    pub const CLD_D8: u8 = 0xD8;
-    pub const CLI_58: u8 = 0x58;
-    pub const CLV_B8: u8 = 0xB8;
-    pub const SEC_38: u8 = 0x38;
-    pub const SED_F8: u8 = 0xF8;
-    pub const SEI_78: u8 = 0x78;
+    // load
+    pub const LDA: u8 = 0x00;
+    pub const LDX: u8 = 0x00;
+    pub const LDY: u8 = 0x00;
+    pub const STA: u8 = 0x00;
+    pub const STX: u8 = 0x00;
+    pub const STY: u8 = 0x00;
 
     // transfer
     pub const TAX_AA: u8 = 0xAA;
@@ -53,6 +43,62 @@ mod opcodes {
     pub const PHP_08: u8 = 0x08;
     pub const PLA_68: u8 = 0x68;
     pub const PLP_28: u8 = 0x28;
+
+    // shift
+    pub const ASL: u8 = 0x00;
+    pub const LSR: u8 = 0x00;
+    pub const ROL: u8 = 0x00;
+    pub const ROR: u8 = 0x00;
+
+    // logic
+    pub const AND: u8 = 0x00;
+    pub const BIT: u8 = 0x00;
+    pub const EOR: u8 = 0x00;
+    pub const ORA: u8 = 0x00;
+
+    // arith
+    pub const ADC: u8 = 0x00;
+    pub const CMP: u8 = 0x00;
+    pub const CPX: u8 = 0x00;
+    pub const CPY: u8 = 0x00;
+    pub const SBC: u8 = 0x00;
+
+    // increment
+    pub const DEC: u8 = 0x00; // TODO
+    pub const DEX_CA: u8 = 0xCA;
+    pub const DEY_88: u8 = 0x88;
+    pub const INC: u8 = 0x00; // TODO
+    pub const INX_E8: u8 = 0xE8;
+    pub const INY_C8: u8 = 0xC8;
+
+    // control
+    pub const BRK: u8 = 0x00;
+    pub const JMP: u8 = 0x00;
+    pub const JSR: u8 = 0x00;
+    pub const RTI: u8 = 0x00;
+    pub const RTS: u8 = 0x00;
+
+    // branch
+    pub const BCC_90: u8 = 0x90;
+    pub const BCS_B0: u8 = 0xB0;
+    pub const BEQ_F0: u8 = 0xF0;
+    pub const BMI_30: u8 = 0x30;
+    pub const BNE_D0: u8 = 0xD0;
+    pub const BPL_10: u8 = 0x10;
+    pub const BVC_50: u8 = 0x50;
+    pub const BVS_70: u8 = 0x70;
+
+    // flags
+    pub const CLC_18: u8 = 0x18;
+    pub const CLD_D8: u8 = 0xD8;
+    pub const CLI_58: u8 = 0x58;
+    pub const CLV_B8: u8 = 0xB8;
+    pub const SEC_38: u8 = 0x38;
+    pub const SED_F8: u8 = 0xF8;
+    pub const SEI_78: u8 = 0x78;
+
+    // nop
+    pub const NOP_EA: u8 = 0xEA;
 }
 
 impl Cpu {
@@ -109,6 +155,223 @@ impl Cpu {
         }
     }
 
+    fn set_pc_to_current_addr_in_memory(&mut self) {
+        let mut addr: u16 = self.memory[self.pc as usize] as u16;
+        addr |= (self.memory[self.pc as usize + 1] as u16) << 8;
+        self.pc = addr;
+    }
+
+    fn step(&mut self) {
+        let opcode = self.memory[self.pc as usize];
+        self.pc += 1;
+        match opcode {
+            opcodes::NOP_EA => {
+                // NOP, 2 cycles
+            }
+            opcodes::INX_E8 => {
+                // INX, 2 cycles, Flags: n,z
+                let result: u16 = self.x as u16 + 1;
+
+                if result & 0xff == 0 {
+                    self.p |= Flags::Z_Zero;
+                } else {
+                    self.p &= !Flags::Z_Zero;
+                }
+
+                self.p &= !Flags::N_Negative;
+                self.p |= (result & Flags::N_Negative as u16) as u8;
+
+                self.x = result as u8;
+            }
+            opcodes::INY_C8 => {
+                // INY, 2cycles, Flags: n,z
+                let result: u16 = self.y as u16 + 1;
+
+                if result & 0xff == 0 {
+                    self.p |= Flags::Z_Zero;
+                } else {
+                    self.p &= !Flags::Z_Zero;
+                }
+
+                self.p &= !Flags::N_Negative;
+                self.p |= (result & Flags::N_Negative as u16) as u8;
+
+                self.y = result as u8;
+            }
+            opcodes::DEX_CA => {
+                // DEX, 2 cycles, Flags: n,z
+                let result: u16 = 0x0100 + self.x as u16 - 1;
+
+                if result as u8 == 0 {
+                    self.p |= Flags::Z_Zero;
+                } else {
+                    self.p &= !Flags::Z_Zero;
+                }
+
+                self.p &= !Flags::N_Negative;
+                self.p |= (result & Flags::N_Negative as u16) as u8;
+
+                self.x = result as u8;
+            }
+            opcodes::DEY_88 => {
+                // DEY, 2 cycles, Flags: n,z
+                let result: u16 = 0x0100 + self.y as u16 - 1;
+
+                if result as u8 == 0 {
+                    self.p |= Flags::Z_Zero;
+                } else {
+                    self.p &= !Flags::Z_Zero;
+                }
+
+                self.p &= !Flags::N_Negative;
+                self.p |= (result & Flags::N_Negative as u16) as u8;
+
+                self.y = result as u8;
+            }
+
+            // flags
+            opcodes::CLC_18 => {
+                self.p &= !Flags::C_Carry;
+            }
+            opcodes::CLD_D8 => {
+                self.p &= !Flags::D_Decimal;
+            }
+            opcodes::CLI_58 => {
+                self.p &= !Flags::I_InterruptDisable;
+            }
+            opcodes::CLV_B8 => {
+                self.p &= !Flags::V_Overflow;
+            }
+
+            opcodes::SEC_38 => {
+                self.p |= Flags::C_Carry;
+            }
+            opcodes::SED_F8 => {
+                self.p |= Flags::D_Decimal;
+            }
+            opcodes::SEI_78 => {
+                self.p |= Flags::I_InterruptDisable;
+            }
+
+            // TRANSFER
+            opcodes::TAX_AA => {
+                self.x = self.a;
+                self.update_negative(self.x);
+                self.update_zero(self.x);
+            }
+            opcodes::TAY_A8 => {
+                self.y = self.a;
+                self.update_negative(self.y);
+                self.update_zero(self.y);
+            }
+            opcodes::TSX_BA => {
+                self.x = self.s;
+                self.update_negative(self.x);
+                self.update_zero(self.x);
+            }
+            opcodes::TXA_8A => {
+                self.a = self.x;
+                self.update_negative(self.a);
+                self.update_zero(self.a);
+            }
+            opcodes::TXS_9A => {
+                self.s = self.x;
+                self.update_negative(self.s);
+                self.update_zero(self.s);
+            }
+            opcodes::TYA_98 => {
+                self.a = self.y;
+                self.update_negative(self.a);
+                self.update_zero(self.a);
+            }
+
+            // STACK
+            opcodes::PHA_48 => {
+                self.memory[0x100 + self.s as usize] = self.a;
+                self.s -= 1;
+            }
+            opcodes::PHP_08 => {
+                self.memory[0x100 + self.s as usize] = self.p;
+                self.s -= 1;
+            }
+            opcodes::PLA_68 => {
+                self.s += 1;
+                self.a = self.memory[0x100 + self.s as usize];
+            }
+            opcodes::PLP_28 => {
+                self.s += 1;
+                self.p = self.memory[0x100 + self.s as usize];
+            }
+
+            // BRANCH
+            opcodes::BCC_90 => {
+                if !self.is_carry() {
+                    self.set_pc_to_current_addr_in_memory();
+                } else {
+                    self.pc += 2;
+                }
+            }
+            opcodes::BCS_B0 => {
+                if self.is_carry() {
+                    self.set_pc_to_current_addr_in_memory();
+                } else {
+                    self.pc += 2;
+                }
+            }
+            opcodes::BEQ_F0 => {
+                if self.is_zero() {
+                    self.set_pc_to_current_addr_in_memory();
+                } else {
+                    self.pc += 2;
+                }
+            }
+            opcodes::BMI_30 => {
+                if self.is_negative() {
+                    self.set_pc_to_current_addr_in_memory();
+                } else {
+                    self.pc += 2;
+                }
+            }
+            opcodes::BNE_D0 => {
+                if !self.is_zero() {
+                    self.set_pc_to_current_addr_in_memory();
+                } else {
+                    self.pc += 2;
+                }
+            }
+            opcodes::BPL_10 => {
+                if !self.is_negative() {
+                    self.set_pc_to_current_addr_in_memory();
+                } else {
+                    self.pc += 2;
+                }
+            }
+            opcodes::BVC_50 => {
+                if !self.is_overflow() {
+                    self.set_pc_to_current_addr_in_memory();
+                } else {
+                    self.pc += 2;
+                }
+            }
+            opcodes::BVS_70 => {
+                if self.is_overflow() {
+                    self.set_pc_to_current_addr_in_memory();
+                } else {
+                    self.pc += 2;
+                }
+            }
+
+            _ => unimplemented!(),
+        }
+    }
+
+    fn run(&mut self) {
+        loop {
+            self.step();
+        }
+    }
+
+    // FIXME: Remove it
     fn run_opcode(&mut self, op: &[u8]) {
         let opcode = op[0];
         match opcode {
@@ -778,5 +1041,136 @@ mod tests {
         assert!(cpu.is_carry());
         assert!(cpu.is_decimal());
         assert!(cpu.is_overflow());
+    }
+
+    //
+    // BRANCH
+    //
+    #[test]
+    fn test_bcc() {
+        let memory: [u8; 3] = [BCC_90, 0x28, 0xA0]; // BCC 0xA028
+
+        let mut cpu = Cpu::new();
+        cpu.patch_memory(0, &memory);
+        cpu.step();
+        assert!(cpu.pc == 0xA028);
+
+        let mut cpu = Cpu::new();
+        cpu.patch_memory(0, &memory);
+        cpu.p |= Flags::C_Carry;
+        cpu.step();
+        assert!(cpu.pc == 0x0003);
+    }
+
+    #[test]
+    fn test_bcs() {
+        let memory: [u8; 3] = [BCS_B0, 0xF0, 0x80]; // BCS 0x80F0
+
+        let mut cpu = Cpu::new();
+        cpu.patch_memory(0, &memory);
+        cpu.step();
+        assert!(cpu.pc == 0x0003);
+
+        let mut cpu = Cpu::new();
+        cpu.patch_memory(0, &memory);
+        cpu.p |= Flags::C_Carry;
+        cpu.step();
+        assert!(cpu.pc == 0x80F0);
+    }
+
+    #[test]
+    fn test_beq() {
+        let memory: [u8; 3] = [BEQ_F0, 0xAA, 0x80];
+
+        let mut cpu = Cpu::new();
+        cpu.patch_memory(0, &memory);
+        cpu.step();
+        assert!(cpu.pc == 0x0003);
+
+        let mut cpu = Cpu::new();
+        cpu.patch_memory(0, &memory);
+        cpu.p |= Flags::Z_Zero;
+        cpu.step();
+        assert!(cpu.pc == 0x80AA);
+    }
+
+    #[test]
+    fn test_bmi() {
+        let memory: [u8; 3] = [BMI_30, 0x00, 0x80];
+
+        let mut cpu = Cpu::new();
+        cpu.patch_memory(0, &memory);
+        cpu.step();
+        assert!(cpu.pc == 0x0003);
+
+        let mut cpu = Cpu::new();
+        cpu.patch_memory(0, &memory);
+        cpu.p |= Flags::N_Negative;
+        cpu.step();
+        assert!(cpu.pc == 0x8000);
+    }
+
+    #[test]
+    fn test_bne() {
+        let memory: [u8; 3] = [BNE_D0, 0x00, 0x80];
+
+        let mut cpu = Cpu::new();
+        cpu.patch_memory(0, &memory);
+        cpu.p |= Flags::Z_Zero;
+        cpu.step();
+        assert!(cpu.pc == 0x0003);
+
+        let mut cpu = Cpu::new();
+        cpu.patch_memory(0, &memory);
+        cpu.step();
+        assert!(cpu.pc == 0x8000);
+    }
+
+    #[test]
+    fn test_bpl() {
+        let memory: [u8; 3] = [BPL_10, 0x00, 0x40];
+
+        let mut cpu = Cpu::new();
+        cpu.patch_memory(0, &memory);
+        cpu.p |= Flags::N_Negative;
+        cpu.step();
+        assert!(cpu.pc == 0x0003);
+
+        let mut cpu = Cpu::new();
+        cpu.patch_memory(0, &memory);
+        cpu.step();
+        assert!(cpu.pc == 0x4000);
+    }
+
+    #[test]
+    fn test_bvc() {
+        let memory: [u8; 3] = [BVC_50, 0x00, 0x40];
+
+        let mut cpu = Cpu::new();
+        cpu.patch_memory(0, &memory);
+        cpu.p |= Flags::V_Overflow;
+        cpu.step();
+        assert!(cpu.pc == 0x0003);
+
+        let mut cpu = Cpu::new();
+        cpu.patch_memory(0, &memory);
+        cpu.step();
+        assert!(cpu.pc == 0x4000);
+    }
+
+    #[test]
+    fn test_bvs() {
+        let memory: [u8; 3] = [BVS_70, 0x00, 0x40];
+
+        let mut cpu = Cpu::new();
+        cpu.patch_memory(0, &memory);
+        cpu.step();
+        assert!(cpu.pc == 0x0003);
+
+        let mut cpu = Cpu::new();
+        cpu.patch_memory(0, &memory);
+        cpu.p |= Flags::V_Overflow;
+        cpu.step();
+        assert!(cpu.pc == 0x4000);
     }
 }
