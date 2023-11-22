@@ -469,80 +469,34 @@ impl Cpu {
 
             // SHIFT ASL
             opcodes::ASL_0A => {
-                // ASL A // accubulator
+                // ASL A
                 self.a = self._asl_inst(self.a);
-
-                //self.update_carry(self.a & 0x80 != 0);
-
-                //self.a <<= 1;
-                //self.update_negative(self.a & 0x80 != 0);
-                //self.update_zero(self.a == 0);
             }
             opcodes::ASL_0E => {
-                // ASL $nnnn // absolute
+                // ASL $nnnn
                 let addr = self.get_addr();
-
-                self.memory[addr as usize] = self._asl_inst(
-                    self.memory[addr as usize]
-                );
-                //let mut val = self.memory[addr as usize];
-                //self.update_carry(val & 0x80 != 0);
-                //val <<= 1;
-                //self.update_negative(val & 0x80 != 0);
-                //self.update_zero(val == 0);
-                //self.memory[addr as usize] = val;
-
+                self.memory[addr as usize] = self._asl_inst(self.memory[addr as usize]);
                 self.pc += 2;
             }
             opcodes::ASL_1E => {
-                // ASL $nnnn,X // X-indexed absolute
+                // ASL $nnnn,X
                 let mut addr = self.get_addr();
                 addr += self.x as u16;
-
-                self.memory[addr as usize] = self._asl_inst(
-                    self.memory[addr as usize]
-                );
-                //let mut val = self.memory[addr as usize];
-                //self.update_carry(val & 0x80 != 0);
-                //val <<= 1;
-                //self.update_negative(val & 0x80 != 0);
-                //self.update_zero(val == 0);
-                //self.memory[addr as usize] = val;
-
+                self.memory[addr as usize] = self._asl_inst(self.memory[addr as usize]);
                 self.pc += 2;
             }
             opcodes::ASL_06 => {
-                // ASL $nn // zero page
+                // ASL $nn
                 let addr = self.get_addr_zero_page();
-
-                self.memory[addr as usize] = self._asl_inst(
-                    self.memory[addr as usize]
-                );
-                // let mut val = self.memory[addr as usize];
-                // self.update_carry(val & 0x80 != 0);
-                // val <<= 1;
-                // self.update_negative(val & 0x80 != 0);
-                // self.update_zero(val == 0);
-                // self.memory[addr as usize] = val;
-
+                self.memory[addr as usize] = self._asl_inst(self.memory[addr as usize]);
                 self.pc += 1;
             }
             opcodes::ASL_16 => {
-                // ASL $nn,X // X-indexed zero page
+                // ASL $nn,X
                 let mut addr = self.get_addr_zero_page();
                 addr += self.x as u16;
                 addr &= 0xff;
-
-                self.memory[addr as usize] = self._asl_inst(
-                    self.memory[addr as usize]
-                );
-                // let mut val = self.memory[addr as usize];
-                // self.update_carry(val & 0x80 != 0);
-                // val <<= 1;
-                // self.update_negative(val & 0x80 != 0);
-                // self.update_zero(val == 0);
-                // self.memory[addr as usize] = val;
-
+                self.memory[addr as usize] = self._asl_inst(self.memory[addr as usize]);
                 self.pc += 1;
             }
 
@@ -554,32 +508,20 @@ impl Cpu {
             opcodes::LSR_4E => {
                 // LSR $nnnn
                 let addr = self.get_addr();
-
-                self.memory[addr as usize] = self._lsr_inst(
-                    self.memory[addr as usize]
-                );
-
+                self.memory[addr as usize] = self._lsr_inst(self.memory[addr as usize]);
                 self.pc += 2;
             }
             opcodes::LSR_5E => {
                 // LSR $nnnn,X
                 let mut addr = self.get_addr();
                 addr += self.x as u16;
-
-                self.memory[addr as usize] = self._lsr_inst(
-                    self.memory[addr as usize]
-                );
-
+                self.memory[addr as usize] = self._lsr_inst(self.memory[addr as usize]);
                 self.pc += 2;
             }
             opcodes::LSR_46 => {
                 // LSR $nn
                 let addr = self.get_addr_zero_page();
-
-                self.memory[addr as usize] = self._lsr_inst(
-                    self.memory[addr as usize]
-                );
-
+                self.memory[addr as usize] = self._lsr_inst(self.memory[addr as usize]);
                 self.pc += 1;
             }
             opcodes::LSR_56 => {
@@ -588,10 +530,7 @@ impl Cpu {
                 addr += self.x as u16;
                 addr &= 0xff;
 
-                self.memory[addr as usize] = self._lsr_inst(
-                    self.memory[addr as usize]
-                );
-
+                self.memory[addr as usize] = self._lsr_inst(self.memory[addr as usize]);
                 self.pc += 1;
             }
 
@@ -664,7 +603,6 @@ impl Cpu {
                 self.memory[addr] = self._ror_inst(self.memory[addr]);
                 self.pc += 1;
             }
-            
 
             _ => unimplemented!(),
         }
@@ -1693,224 +1631,130 @@ mod tests {
     // SHIFT LSR
     //
     #[test]
-    fn test_lsr_4a() { // LSR A
+    fn test_lsr_4a() {
+        // LSR A
         let memory: &[u8] = &[LSR_4A];
 
-        let mut cpu = Cpu::new();
-        cpu.patch_memory(0, memory);
-        cpu.a = 0;
-        cpu.step();
-        assert!(cpu.p == Z_Zero);
+        fn _t(memory: &[u8], val: u8, expected_val: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.patch_memory(0, memory);
+            cpu.a = val;
+            cpu.step();
 
-        cpu.reset();
-        cpu.a = 1;
-        cpu.step();
-        assert!(cpu.p == C_Carry | Z_Zero);
-        assert!(cpu.a == 0x00);
+            assert!(cpu.p == expected_flags);
+            assert!(cpu.a == expected_val);
+        }
 
-        cpu.reset();
-        cpu.a = 2;
-        cpu.step();
-        assert!(cpu.p == 0);
-        assert!(cpu.a == 1);
-
-        cpu.reset();
-        cpu.a = 3;
-        cpu.step();
-        assert!(cpu.p == C_Carry);
-        assert!(cpu.a == 0x01);
-
-        cpu.reset();
-        cpu.a = 0x80;
-        cpu.step();
-        assert!(cpu.p == 0);
-        assert!(cpu.a == 0x40);
-
-        cpu.reset();
-        cpu.a = 0x81;
-        cpu.step();
-        assert!(cpu.p == C_Carry);
-        assert!(cpu.a == 0x40);
+        // memory   val exp_val, exp_flags
+        _t(memory, 0, 0, Z_Zero);
+        _t(memory, 1, 0, C_Carry | Z_Zero);
+        _t(memory, 2, 1, 0);
+        _t(memory, 3, 1, C_Carry);
+        _t(memory, 0x80, 0x40, 0);
+        _t(memory, 0x81, 0x40, C_Carry);
+        _t(memory, 0xC9, 0x64, C_Carry);
     }
 
     #[test]
-    fn test_lsr_4e() { // LSR $nnnn // absolute
+    fn test_lsr_4e() {
+        // LSR $nnnn
         let memory: &[u8] = &[LSR_4E, 0x00, 0x80];
 
-        let mut cpu = Cpu::new();
-        cpu.patch_memory(0, memory);
-        cpu.memory[0x8000] = 0;
-        cpu.step();
-        assert!(cpu.p == Z_Zero);
-        assert!(cpu.memory[0x8000] == 0x00);
+        fn _t(memory: &[u8], addr: u16, val: u8, expected_val: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.patch_memory(0, memory);
+            cpu.memory[addr as usize] = val;
+            cpu.step();
 
-        cpu.reset();
-        cpu.memory[0x8000] = 1;
-        cpu.step();
-        assert!(cpu.p == C_Carry | Z_Zero);
-        assert!(cpu.memory[0x8000] == 0);
+            assert!(cpu.p == expected_flags);
+            assert!(cpu.memory[addr as usize] == expected_val);
+        }
 
-        cpu.reset();
-        cpu.memory[0x8000] = 2;
-        cpu.step();
-        assert!(cpu.p == 0);
-        assert!(cpu.memory[0x8000] == 1);
-
-        cpu.reset();
-        cpu.memory[0x8000] = 3;
-        cpu.step();
-        assert!(cpu.p == C_Carry);
-        assert!(cpu.memory[0x8000] == 1);
-
-        cpu.reset();
-        cpu.memory[0x8000] = 0x80;
-        cpu.step();
-        assert!(cpu.p == 0);
-        assert!(cpu.memory[0x8000] == 0x40);
-
-        cpu.reset();
-        cpu.memory[0x8000] = 0x81;
-        cpu.step();
-        assert!(cpu.p == C_Carry);
-        assert!(cpu.memory[0x8000] == 0x40);
+        // memory    addr,  val exp_val, exp_flags
+        _t(memory, 0x8000, 0, 0, Z_Zero);
+        _t(memory, 0x8000, 1, 0, C_Carry | Z_Zero);
+        _t(memory, 0x8000, 2, 1, 0);
+        _t(memory, 0x8000, 3, 1, C_Carry);
+        _t(memory, 0x8000, 0x80, 0x40, 0);
+        _t(memory, 0x8000, 0x81, 0x40, C_Carry);
+        _t(memory, 0x8000, 0xC9, 0x64, C_Carry);
     }
 
     #[test]
-    fn test_lsr_5e() { // LSR $nnnn,X
+    fn test_lsr_5e() {
+        // LSR $nnnn,X
         let memory: &[u8] = &[LSR_5E, 0x00, 0x80];
 
-        let mut cpu = Cpu::new();
-        cpu.patch_memory(0, memory);
-        cpu.memory[0x8015] = 0;
-        cpu.x = 0x15;
-        cpu.step();
-        assert!(cpu.p == Z_Zero);
-        assert!(cpu.memory[0x8015] == 0x00);
+        fn _t(memory: &[u8], addr: u16, x: u8, val: u8, expected_val: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.patch_memory(0, memory);
+            cpu.x = x;
+            cpu.memory[addr as usize + x as usize] = val;
+            cpu.step();
 
-        cpu.reset();
-        cpu.memory[0x8015] = 1;
-        cpu.x = 0x15;
-        cpu.step();
-        assert!(cpu.p == C_Carry | Z_Zero);
-        assert!(cpu.memory[0x8015] == 0);
+            assert!(cpu.p == expected_flags);
+            assert!(cpu.memory[addr as usize + x as usize] == expected_val);
+        }
 
-        cpu.reset();
-        cpu.memory[0x8015] = 2;
-        cpu.x = 0x15;
-        cpu.step();
-        assert!(cpu.p == 0);
-        assert!(cpu.memory[0x8015] == 1);
-
-        cpu.reset();
-        cpu.memory[0x8015] = 3;
-        cpu.x = 0x15;
-        cpu.step();
-        assert!(cpu.p == C_Carry);
-        assert!(cpu.memory[0x8015] == 1);
-
-        cpu.reset();
-        cpu.memory[0x8015] = 0x80;
-        cpu.x = 0x15;
-        cpu.step();
-        assert!(cpu.p == 0);
-        assert!(cpu.memory[0x8015] == 0x40);
-
-        cpu.reset();
-        cpu.memory[0x8015] = 0x81;
-        cpu.x = 0x15;
-        cpu.step();
-        assert!(cpu.p == C_Carry);
-        assert!(cpu.memory[0x8015] == 0x40);
+        // memory    addr,    x,  val exp_val, exp_flags
+        _t(memory, 0x8000, 0x20, 0, 0, Z_Zero);
+        _t(memory, 0x8000, 0x20, 1, 0, C_Carry | Z_Zero);
+        _t(memory, 0x8000, 0x20, 2, 1, 0);
+        _t(memory, 0x8000, 0x20, 3, 1, C_Carry);
+        _t(memory, 0x8000, 0x20, 0x80, 0x40, 0);
+        _t(memory, 0x8000, 0x20, 0x81, 0x40, C_Carry);
+        _t(memory, 0x8000, 0x20, 0xC9, 0x64, C_Carry);
     }
 
     #[test]
-    fn test_lsr_46() { // LSR $nn // zero-page
+    fn test_lsr_46() {
+        // LSR $nn
         let memory: &[u8] = &[LSR_46, 0x80];
 
-        let mut cpu = Cpu::new();
-        cpu.patch_memory(0, memory);
-        cpu.memory[0x0080] = 0;
-        cpu.step();
-        assert!(cpu.p == Z_Zero);
-        assert!(cpu.memory[0x0080] == 0x00);
+        fn _t(memory: &[u8], addr: u16, val: u8, expected_val: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.patch_memory(0, memory);
+            cpu.memory[addr as usize] = val;
+            cpu.step();
 
-        cpu.reset();
-        cpu.memory[0x0080] = 1;
-        cpu.step();
-        assert!(cpu.p == C_Carry | Z_Zero);
-        assert!(cpu.memory[0x0080] == 0);
+            assert!(cpu.p == expected_flags);
+            assert!(cpu.memory[addr as usize] == expected_val);
+        }
 
-        cpu.reset();
-        cpu.memory[0x0080] = 2;
-        cpu.step();
-        assert!(cpu.p == 0);
-        assert!(cpu.memory[0x0080] == 1);
-
-        cpu.reset();
-        cpu.memory[0x0080] = 3;
-        cpu.step();
-        assert!(cpu.p == C_Carry);
-        assert!(cpu.memory[0x0080] == 1);
-
-        cpu.reset();
-        cpu.memory[0x0080] = 0x80;
-        cpu.step();
-        assert!(cpu.p == 0);
-        assert!(cpu.memory[0x0080] == 0x40);
-
-        cpu.reset();
-        cpu.memory[0x0080] = 0x81;
-        cpu.step();
-        assert!(cpu.p == C_Carry);
-        assert!(cpu.memory[0x0080] == 0x40);
+        // memory    addr,  val exp_val, exp_flags
+        _t(memory, 0x0080, 0, 0, Z_Zero);
+        _t(memory, 0x0080, 1, 0, C_Carry | Z_Zero);
+        _t(memory, 0x0080, 2, 1, 0);
+        _t(memory, 0x0080, 3, 1, C_Carry);
+        _t(memory, 0x0080, 0x80, 0x40, 0);
+        _t(memory, 0x0080, 0x81, 0x40, C_Carry);
+        _t(memory, 0x0080, 0xC9, 0x64, C_Carry);
     }
 
     #[test]
-    fn test_lsr_56() { // LSR $nn,X // X-indexed zero-page
+    fn test_lsr_56() {
+        // LSR $nn,X
         let memory: &[u8] = &[LSR_56, 0x80];
 
-        let mut cpu = Cpu::new();
-        cpu.patch_memory(0, memory);
-        cpu.memory[0x0095] = 0;
-        cpu.x = 0x15;
-        cpu.step();
-        assert!(cpu.p == Z_Zero);
-        assert!(cpu.memory[0x0095] == 0x00);
+        fn _t(memory: &[u8], addr: u16, x: u8, val: u8, expected_val: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.patch_memory(0, memory);
+            cpu.x = x;
+            cpu.memory[addr as usize + x as usize] = val;
+            cpu.step();
 
-        cpu.reset();
-        cpu.memory[0x0095] = 1;
-        cpu.x = 0x15;
-        cpu.step();
-        assert!(cpu.p == C_Carry | Z_Zero);
-        assert!(cpu.memory[0x0095] == 0);
+            assert!(cpu.p == expected_flags);
+            assert!(cpu.memory[addr as usize + x as usize] == expected_val);
+        }
 
-        cpu.reset();
-        cpu.memory[0x0095] = 2;
-        cpu.x = 0x15;
-        cpu.step();
-        assert!(cpu.p == 0);
-        assert!(cpu.memory[0x0095] == 1);
-
-        cpu.reset();
-        cpu.memory[0x0095] = 3;
-        cpu.x = 0x15;
-        cpu.step();
-        assert!(cpu.p == C_Carry);
-        assert!(cpu.memory[0x0095] == 1);
-
-        cpu.reset();
-        cpu.memory[0x0095] = 0x80;
-        cpu.x = 0x15;
-        cpu.step();
-        assert!(cpu.p == 0);
-        assert!(cpu.memory[0x0095] == 0x40);
-
-        cpu.reset();
-        cpu.memory[0x0095] = 0x81;
-        cpu.x = 0x15;
-        cpu.step();
-        assert!(cpu.p == C_Carry);
-        assert!(cpu.memory[0x0095] == 0x40);
+        // memory    addr,    x,  val exp_val, exp_flags
+        _t(memory, 0x0080, 0x20, 0, 0, Z_Zero);
+        _t(memory, 0x0080, 0x20, 1, 0, C_Carry | Z_Zero);
+        _t(memory, 0x0080, 0x20, 2, 1, 0);
+        _t(memory, 0x0080, 0x20, 3, 1, C_Carry);
+        _t(memory, 0x0080, 0x20, 0x80, 0x40, 0);
+        _t(memory, 0x0080, 0x20, 0x81, 0x40, C_Carry);
+        _t(memory, 0x0080, 0x20, 0xC9, 0x64, C_Carry);
     }
 
     // ROL - Rotate Left
@@ -1918,123 +1762,74 @@ mod tests {
     fn test_rol_2a() {
         let memory: &[u8] = &[ROL_2A]; // ROL A
 
-        let mut cpu = Cpu::new();
-        cpu.patch_memory(0, &memory);
-        cpu.a = 0;
-        cpu.step();
-        assert!(cpu.p == Z_Zero);
-        assert!(cpu.a == 0);
+        fn _t(memory: &[u8], set_carry: bool, val: u8, expected_val: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.patch_memory(0, memory);
+            cpu.update_carry(set_carry);
+            cpu.a = val;
+            cpu.step();
 
-        cpu.reset();
-        cpu.a = 1;
-        cpu.step();
-        assert!(cpu.p == 0);
-        assert!(cpu.a == 2);
+            assert!(cpu.p == expected_flags);
+            assert!(cpu.a == expected_val);
+        }
 
-        cpu.reset();
-        cpu.a = 0x40;
-        cpu.step();
-        assert!(cpu.p == N_Negative);
-        assert!(cpu.a == 0x80);
-
-        cpu.reset();
-        cpu.a = 0x80;
-        cpu.step();
-        assert!(cpu.p == C_Carry | Z_Zero);
-        assert!(cpu.a == 0);
-
-        cpu.reset();
-        cpu.a = 0xC0;
-        cpu.step();
-        assert!(cpu.p == C_Carry | N_Negative);
-        assert!(cpu.a == 0x80);
-
-        cpu.reset();
-        cpu.update_carry(true);
-        cpu.a = 0x40;
-        cpu.step();
-        assert!(cpu.p == N_Negative);
-        assert!(cpu.a == 0x81);
-
-        cpu.reset();
-        cpu.update_carry(true);
-        cpu.a = 0x80;
-        cpu.step();
-        assert!(cpu.p == C_Carry);
-        assert!(cpu.a == 0x01);
-
-        cpu.reset();
-        cpu.update_carry(true);
-        cpu.a = 0xC0;
-        cpu.step();
-        assert!(cpu.p == C_Carry | N_Negative);
-        assert!(cpu.a == 0x81);
+        // memory  carry   val exp_val, exp_flags
+        _t(memory, false, 0, 0, Z_Zero);
+        _t(memory, false, 1, 2, 0);
+        _t(memory, false, 0x40, 0x80, N_Negative);
+        _t(memory, false, 0x80, 0, C_Carry | Z_Zero);
+        _t(memory, false, 0xC0, 0x80, C_Carry | N_Negative);
+        _t(memory, true, 0x40, 0x81, N_Negative);
+        _t(memory, true, 0x80, 1, C_Carry);
+        _t(memory, true, 0xC0, 0x81, N_Negative | C_Carry);
     }
 
     #[test]
     fn test_rol_2e() {
-        let memory: &[u8] = &[ROL_2E, 0x00, 0x80]; // ROL $8000
+        let memory: &[u8] = &[ROL_2E, 0x00, 0x80]; // ROL $nnnn
 
-        let mut cpu = Cpu::new();
-        cpu.patch_memory(0, &memory);
-        cpu.memory[0x8000] = 0;
-        cpu.step();
-        assert!(cpu.p == Z_Zero);
-        assert!(cpu.memory[0x8000] == 0);
+        fn _t(
+            memory: &[u8],
+            addr: u16,
+            set_carry: bool,
+            val: u8,
+            expected_val: u8,
+            expected_flags: u8,
+        ) {
+            let mut cpu = Cpu::new();
+            cpu.patch_memory(0, memory);
+            cpu.update_carry(set_carry);
+            cpu.memory[addr as usize] = val;
+            cpu.step();
 
-        cpu.reset();
-        cpu.memory[0x8000] = 1;
-        cpu.step();
-        assert!(cpu.p == 0);
-        assert!(cpu.memory[0x8000] == 2);
+            assert!(cpu.p == expected_flags);
+            assert!(cpu.memory[addr as usize] == expected_val);
+        }
 
-        cpu.reset();
-        cpu.memory[0x8000] = 0x40;
-        cpu.step();
-        assert!(cpu.p == N_Negative);
-        assert!(cpu.memory[0x8000] == 0x80);
-
-        cpu.reset();
-        cpu.memory[0x8000] = 0x80;
-        cpu.step();
-        assert!(cpu.p == C_Carry | Z_Zero);
-        assert!(cpu.memory[0x8000] == 0);
-
-        cpu.reset();
-        cpu.memory[0x8000] = 0xC0;
-        cpu.step();
-        assert!(cpu.p == C_Carry | N_Negative);
-        assert!(cpu.memory[0x8000] == 0x80);
-
-        cpu.reset();
-        cpu.update_carry(true);
-        cpu.memory[0x8000] = 0x40;
-        cpu.step();
-        assert!(cpu.p == N_Negative);
-        assert!(cpu.memory[0x8000] == 0x81);
-
-        cpu.reset();
-        cpu.update_carry(true);
-        cpu.memory[0x8000] = 0x80;
-        cpu.step();
-        assert!(cpu.p == C_Carry);
-        assert!(cpu.memory[0x8000] == 0x01);
-
-        cpu.reset();
-        cpu.update_carry(true);
-        cpu.memory[0x8000] = 0xC0;
-        cpu.step();
-        assert!(cpu.p == C_Carry | N_Negative);
-        assert!(cpu.memory[0x8000] == 0x81);
+        // memory    addr  carry   val exp_val, exp_flags
+        _t(memory, 0x8000, false, 0, 0, Z_Zero);
+        _t(memory, 0x8000, false, 1, 2, 0);
+        _t(memory, 0x8000, false, 0x40, 0x80, N_Negative);
+        _t(memory, 0x8000, false, 0x80, 0, C_Carry | Z_Zero);
+        _t(memory, 0x8000, false, 0xC0, 0x80, C_Carry | N_Negative);
+        _t(memory, 0x8000, true, 0x40, 0x81, N_Negative);
+        _t(memory, 0x8000, true, 0x80, 1, C_Carry);
+        _t(memory, 0x8000, true, 0xC0, 0x81, N_Negative | C_Carry);
     }
 
     #[test]
     fn test_rol_3e() {
         let memory: &[u8] = &[ROL_3E, 0x00, 0x80]; // ROL $8000,X
 
-        fn _t(memory: &[u8], addr: u16, x: u8, set_carry: bool,
-              val: u8, expected_val: u8, expected_flags: u8)
-        {
+        fn _t(
+            memory: &[u8],
+            addr: u16,
+            x: u8,
+            set_carry: bool,
+            val: u8,
+            expected_val: u8,
+            expected_flags: u8,
+        ) {
             let mut cpu = Cpu::new();
             cpu.patch_memory(0, memory);
             cpu.update_carry(set_carry);
@@ -2046,77 +1841,23 @@ mod tests {
             assert!(cpu.memory[addr as usize + x as usize] == expected_val);
         }
 
-        // memory    addr     x  carry  val exp_val,   exp_flags
-        _t(memory, 0x8000, 0x15, false,    0,      0,     Z_Zero);
-        _t(memory, 0x8000, 0x15, false,    1,      2,          0);
-        _t(memory, 0x8000, 0x15, false, 0x40,   0x80, N_Negative);
-        _t(memory, 0x8000, 0x15, false, 0x80,      0,    C_Carry | Z_Zero);
-        _t(memory, 0x8000, 0x15, false, 0xC0,   0x80, C_Carry | N_Negative);
-        _t(memory, 0x8000, 0x15,  true, 0x40,   0x81, N_Negative);
-        _t(memory, 0x8000, 0x15,  true, 0x80,      1,    C_Carry);
-        _t(memory, 0x8000, 0x15,  true, 0xC0,   0x81, N_Negative | C_Carry);
-
-        /*
-        let mut cpu = Cpu::new();
-        cpu.patch_memory(0, &memory);
-        cpu.memory[0x8015] = 0;
-        cpu.x = 0x15;
-        cpu.step();
-        assert!(cpu.p == Z_Zero);
-        assert!(cpu.memory[0x8015], 0);
-
-        cpu.reset();
-        cpu.memory[0x8015] = 1;
-        cpu.x = 0x15;
-        cpu.step();
-        assert!(cpu.p == 0);
-        assert!(cpu.memory[0x8015] == 2);
-
-        cpu.reset();
-        cpu.memory[0x8015] = 0x40;
-        cpu.x = 0x15;
-        cpu.step();
-        assert!(cpu.p == N_Negative);
-        assert!(cpu.memory[0x8015] == 0x80);
-
-        cpu.reset();
-        cpu.memory[0x8015] = 0x80;
-        cpu.x = 0x15;
-        cpu.step();
-        assert!(cpu.p == C_Carry);
-        assert!(cpu.memory[0x8015] == 0);
-
-        cpu.reset();
-        cpu.memory[0x8015] = 0xC0;
-        cpu.x = 0x15;
-        cpu.step();
-        assert!(cpu.p == C_Carry | N_Negative);
-        assert!(cpu.memory[0x8015] == 0x80);
-
-        cpu.reset();
-        cpu.memory[0x8015] = 0x40;
-        cpu.update_carry(true);
-        cpu.x = 0x15;
-        cpu.step();
-        assert!(cpu.p == N_Negative);
-        assert!(cpu.memory[0x8015] == 0x81);
-
-        cpu.reset();
-        cpu.memory[0x8015] = 0x80;
-        cpu.update_carry(true);
-        cpu.x = 0x15;
-        cpu.step();
-        assert!(cpu.p == C_Carry);
-        assert!(cpu.memory[0x8015] == 0x01);
-
-        cpu.reset();
-        cpu.memory[0x8015] = 0xC0;
-        cpu.update_carry(true);
-        cpu.x = 0x15;
-        cpu.step();
-        assert!(cpu.p == C_Carry | N_Negative);
-        assert!(cpu.memory[0x8015] == 0x81);
-        */
+        // memory    addr     x  carry  val  exp_val,  exp_flags
+        _t(memory, 0x8000, 0x15, false, 0, 0, Z_Zero);
+        _t(memory, 0x8000, 0x15, false, 1, 2, 0);
+        _t(memory, 0x8000, 0x15, false, 0x40, 0x80, N_Negative);
+        _t(memory, 0x8000, 0x15, false, 0x80, 0, C_Carry | Z_Zero);
+        _t(
+            memory,
+            0x8000,
+            0x15,
+            false,
+            0xC0,
+            0x80,
+            C_Carry | N_Negative,
+        );
+        _t(memory, 0x8000, 0x15, true, 0x40, 0x81, N_Negative);
+        _t(memory, 0x8000, 0x15, true, 0x80, 1, C_Carry);
+        _t(memory, 0x8000, 0x15, true, 0xC0, 0x81, N_Negative | C_Carry);
     }
 
     #[test]
@@ -2124,9 +1865,14 @@ mod tests {
         // ROL $nn
         let memory: &[u8] = &[ROL_26, 0x80]; // ROL $80
 
-        fn _t(memory: &[u8], addr: u16, set_carry: bool,
-              val: u8, expected_val: u8, expected_flags: u8)
-        {
+        fn _t(
+            memory: &[u8],
+            addr: u16,
+            set_carry: bool,
+            val: u8,
+            expected_val: u8,
+            expected_flags: u8,
+        ) {
             let mut cpu = Cpu::new();
             cpu.patch_memory(0, memory);
             cpu.update_carry(set_carry);
@@ -2140,23 +1886,29 @@ mod tests {
         }
 
         // memory    addr  carry  val exp_val,   exp_flags
-        _t(memory, 0x0080, false,    0,      0,     Z_Zero);
-        _t(memory, 0x0080, false,    1,      2,          0);
-        _t(memory, 0x0080, false, 0x40,   0x80, N_Negative);
-        _t(memory, 0x0080, false, 0x80,      0,    C_Carry | Z_Zero);
-        _t(memory, 0x0080, false, 0xC0,   0x80, C_Carry | N_Negative);
-        _t(memory, 0x0080,  true, 0x40,   0x81, N_Negative);
-        _t(memory, 0x0080,  true, 0x80,      1,    C_Carry);
-        _t(memory, 0x0080,  true, 0xC0,   0x81, N_Negative | C_Carry);
+        _t(memory, 0x0080, false, 0, 0, Z_Zero);
+        _t(memory, 0x0080, false, 1, 2, 0);
+        _t(memory, 0x0080, false, 0x40, 0x80, N_Negative);
+        _t(memory, 0x0080, false, 0x80, 0, C_Carry | Z_Zero);
+        _t(memory, 0x0080, false, 0xC0, 0x80, C_Carry | N_Negative);
+        _t(memory, 0x0080, true, 0x40, 0x81, N_Negative);
+        _t(memory, 0x0080, true, 0x80, 1, C_Carry);
+        _t(memory, 0x0080, true, 0xC0, 0x81, N_Negative | C_Carry);
     }
 
     #[test]
     fn test_rol_36() {
         let memory: &[u8] = &[ROL_36, 0x80]; // ROL $80,X
 
-        fn _t(memory: &[u8], addr: u16, x: u8, set_carry: bool,
-              val: u8, expected_val: u8, expected_flags: u8)
-        {
+        fn _t(
+            memory: &[u8],
+            addr: u16,
+            x: u8,
+            set_carry: bool,
+            val: u8,
+            expected_val: u8,
+            expected_flags: u8,
+        ) {
             let mut cpu = Cpu::new();
             cpu.patch_memory(0, memory);
             cpu.update_carry(set_carry);
@@ -2169,24 +1921,30 @@ mod tests {
         }
 
         // memory    addr     x, carry  val exp_val,   exp_flags
-        _t(memory, 0x0080, 0x15, false,    0,      0,     Z_Zero);
-        _t(memory, 0x0080, 0x15, false,    1,      2,          0);
-        _t(memory, 0x0080, 0x15, false, 0x40,   0x80, N_Negative);
-        _t(memory, 0x0080, 0x15, false, 0x80,      0,    C_Carry | Z_Zero);
-        _t(memory, 0x0080, 0x15, false, 0xC0,   0x80, C_Carry | N_Negative);
-        _t(memory, 0x0080, 0x15,  true, 0x40,   0x81, N_Negative);
-        _t(memory, 0x0080, 0x15,  true, 0x80,      1,    C_Carry);
-        _t(memory, 0x0080, 0x15,  true, 0xC0,   0x81, N_Negative | C_Carry);
+        _t(memory, 0x0080, 0x15, false, 0, 0, Z_Zero);
+        _t(memory, 0x0080, 0x15, false, 1, 2, 0);
+        _t(memory, 0x0080, 0x15, false, 0x40, 0x80, N_Negative);
+        _t(memory, 0x0080, 0x15, false, 0x80, 0, C_Carry | Z_Zero);
+        _t(
+            memory,
+            0x0080,
+            0x15,
+            false,
+            0xC0,
+            0x80,
+            C_Carry | N_Negative,
+        );
+        _t(memory, 0x0080, 0x15, true, 0x40, 0x81, N_Negative);
+        _t(memory, 0x0080, 0x15, true, 0x80, 1, C_Carry);
+        _t(memory, 0x0080, 0x15, true, 0xC0, 0x81, N_Negative | C_Carry);
     }
 
     // ROR - Rotate Right
     #[test]
-    fn test_ror_6A() {
+    fn test_ror_6a() {
         let memory: &[u8] = &[ROR_6A]; // ROR A
 
-        fn _t(memory: &[u8], set_carry: bool,
-              val: u8, expected_val: u8, expected_flags: u8)
-        {
+        fn _t(memory: &[u8], set_carry: bool, val: u8, expected_val: u8, expected_flags: u8) {
             let mut cpu = Cpu::new();
             cpu.patch_memory(0, memory);
             cpu.update_carry(set_carry);
@@ -2198,26 +1956,30 @@ mod tests {
         }
 
         // memory  carry  val  exp_val, exp_flags
-        _t(memory, false,    0,      0, Z_Zero);
-        _t(memory, false,    1,      0, C_Carry | Z_Zero);
-        _t(memory, false,    2,      1, 0);
-        _t(memory, false,    3,      1, C_Carry);
-        _t(memory,  true,    0,   0x80, N_Negative);
-        _t(memory,  true,    1,   0x80, N_Negative | C_Carry);
-        _t(memory,  true,    2,   0x81, N_Negative);
-        _t(memory,  true,    3,   0x81, N_Negative | C_Carry);
-        _t(memory,  true, 0x80,   0xC0, N_Negative);
-        _t(memory,  true, 0x81,   0xC0, N_Negative | C_Carry);
+        _t(memory, false, 0, 0, Z_Zero);
+        _t(memory, false, 1, 0, C_Carry | Z_Zero);
+        _t(memory, false, 2, 1, 0);
+        _t(memory, false, 3, 1, C_Carry);
+        _t(memory, true, 0, 0x80, N_Negative);
+        _t(memory, true, 1, 0x80, N_Negative | C_Carry);
+        _t(memory, true, 2, 0x81, N_Negative);
+        _t(memory, true, 3, 0x81, N_Negative | C_Carry);
+        _t(memory, true, 0x80, 0xC0, N_Negative);
+        _t(memory, true, 0x81, 0xC0, N_Negative | C_Carry);
     }
 
     #[test]
-    fn test_ror_6E() {
+    fn test_ror_6e() {
         let memory: &[u8] = &[ROR_6E, 0x40, 0x80]; // ROR $nnnn
 
-
-        fn _t(memory: &[u8], addr: u16, set_carry: bool,
-              val: u8, expected_val: u8, expected_flags: u8)
-        {
+        fn _t(
+            memory: &[u8],
+            addr: u16,
+            set_carry: bool,
+            val: u8,
+            expected_val: u8,
+            expected_flags: u8,
+        ) {
             let mut cpu = Cpu::new();
             cpu.patch_memory(0, memory);
             cpu.update_carry(set_carry);
@@ -2229,25 +1991,31 @@ mod tests {
         }
 
         // memory    addr, carry   val exp_val,  exp_flags
-        _t(memory, 0x8040, false,    0,      0,     Z_Zero);
-        _t(memory, 0x8040, false,    1,      0, C_Carry | Z_Zero);
-        _t(memory, 0x8040, false,    2,      1,          0);
-        _t(memory, 0x8040, false,    3,      1,    C_Carry);
-        _t(memory, 0x8040,  true,    0,   0x80, N_Negative);
-        _t(memory, 0x8040,  true,    1,   0x80, N_Negative | C_Carry);
-        _t(memory, 0x8040,  true,    2,   0x81, N_Negative);
-        _t(memory, 0x8040,  true,    3,   0x81, N_Negative | C_Carry);
-        _t(memory, 0x8040,  true, 0x80,   0xC0, N_Negative);
-        _t(memory, 0x8040,  true, 0x81,   0xC0, N_Negative | C_Carry);
+        _t(memory, 0x8040, false, 0, 0, Z_Zero);
+        _t(memory, 0x8040, false, 1, 0, C_Carry | Z_Zero);
+        _t(memory, 0x8040, false, 2, 1, 0);
+        _t(memory, 0x8040, false, 3, 1, C_Carry);
+        _t(memory, 0x8040, true, 0, 0x80, N_Negative);
+        _t(memory, 0x8040, true, 1, 0x80, N_Negative | C_Carry);
+        _t(memory, 0x8040, true, 2, 0x81, N_Negative);
+        _t(memory, 0x8040, true, 3, 0x81, N_Negative | C_Carry);
+        _t(memory, 0x8040, true, 0x80, 0xC0, N_Negative);
+        _t(memory, 0x8040, true, 0x81, 0xC0, N_Negative | C_Carry);
     }
 
     #[test]
-    fn test_ror_7E() {
+    fn test_ror_7e() {
         let memory: &[u8] = &[ROR_7E, 0x40, 0x80]; // ROR $nnnn,X
 
-        fn _t(memory: &[u8], addr: u16, x: u8, set_carry: bool,
-              val: u8, expected_val: u8, expected_flags: u8)
-        {
+        fn _t(
+            memory: &[u8],
+            addr: u16,
+            x: u8,
+            set_carry: bool,
+            val: u8,
+            expected_val: u8,
+            expected_flags: u8,
+        ) {
             let mut cpu = Cpu::new();
             cpu.patch_memory(0, memory);
             cpu.x = x;
@@ -2260,25 +2028,30 @@ mod tests {
         }
 
         // memory    addr,    x, carry   val exp_val,  exp_flags
-        _t(memory, 0x8040, 0x20, false,    0,      0,     Z_Zero);
-        _t(memory, 0x8040, 0x20, false,    1,      0, C_Carry | Z_Zero);
-        _t(memory, 0x8040, 0x20, false,    2,      1,          0);
-        _t(memory, 0x8040, 0x20, false,    3,      1,    C_Carry);
-        _t(memory, 0x8040, 0x20,  true,    0,   0x80, N_Negative);
-        _t(memory, 0x8040, 0x20,  true,    1,   0x80, N_Negative | C_Carry);
-        _t(memory, 0x8040, 0x20,  true,    2,   0x81, N_Negative);
-        _t(memory, 0x8040, 0x20,  true,    3,   0x81, N_Negative | C_Carry);
-        _t(memory, 0x8040, 0x20,  true, 0x80,   0xC0, N_Negative);
-        _t(memory, 0x8040, 0x20,  true, 0x81,   0xC0, N_Negative | C_Carry);
+        _t(memory, 0x8040, 0x20, false, 0, 0, Z_Zero);
+        _t(memory, 0x8040, 0x20, false, 1, 0, C_Carry | Z_Zero);
+        _t(memory, 0x8040, 0x20, false, 2, 1, 0);
+        _t(memory, 0x8040, 0x20, false, 3, 1, C_Carry);
+        _t(memory, 0x8040, 0x20, true, 0, 0x80, N_Negative);
+        _t(memory, 0x8040, 0x20, true, 1, 0x80, N_Negative | C_Carry);
+        _t(memory, 0x8040, 0x20, true, 2, 0x81, N_Negative);
+        _t(memory, 0x8040, 0x20, true, 3, 0x81, N_Negative | C_Carry);
+        _t(memory, 0x8040, 0x20, true, 0x80, 0xC0, N_Negative);
+        _t(memory, 0x8040, 0x20, true, 0x81, 0xC0, N_Negative | C_Carry);
     }
 
     #[test]
     fn test_ror_66() {
         let memory: &[u8] = &[ROR_66, 0x40]; // ROR $nn
 
-        fn _t(memory: &[u8], addr: u16, set_carry: bool,
-              val: u8, expected_val: u8, expected_flags: u8)
-        {
+        fn _t(
+            memory: &[u8],
+            addr: u16,
+            set_carry: bool,
+            val: u8,
+            expected_val: u8,
+            expected_flags: u8,
+        ) {
             let mut cpu = Cpu::new();
             cpu.patch_memory(0, memory);
             cpu.update_carry(set_carry);
@@ -2290,25 +2063,31 @@ mod tests {
         }
 
         // memory    addr, carry   val exp_val,  exp_flags
-        _t(memory, 0x0040, false,    0,      0,     Z_Zero);
-        _t(memory, 0x0040, false,    1,      0, C_Carry | Z_Zero);
-        _t(memory, 0x0040, false,    2,      1,          0);
-        _t(memory, 0x0040, false,    3,      1,    C_Carry);
-        _t(memory, 0x0040,  true,    0,   0x80, N_Negative);
-        _t(memory, 0x0040,  true,    1,   0x80, N_Negative | C_Carry);
-        _t(memory, 0x0040,  true,    2,   0x81, N_Negative);
-        _t(memory, 0x0040,  true,    3,   0x81, N_Negative | C_Carry);
-        _t(memory, 0x0040,  true, 0x80,   0xC0, N_Negative);
-        _t(memory, 0x0040,  true, 0x81,   0xC0, N_Negative | C_Carry);
+        _t(memory, 0x0040, false, 0, 0, Z_Zero);
+        _t(memory, 0x0040, false, 1, 0, C_Carry | Z_Zero);
+        _t(memory, 0x0040, false, 2, 1, 0);
+        _t(memory, 0x0040, false, 3, 1, C_Carry);
+        _t(memory, 0x0040, true, 0, 0x80, N_Negative);
+        _t(memory, 0x0040, true, 1, 0x80, N_Negative | C_Carry);
+        _t(memory, 0x0040, true, 2, 0x81, N_Negative);
+        _t(memory, 0x0040, true, 3, 0x81, N_Negative | C_Carry);
+        _t(memory, 0x0040, true, 0x80, 0xC0, N_Negative);
+        _t(memory, 0x0040, true, 0x81, 0xC0, N_Negative | C_Carry);
     }
 
     #[test]
     fn test_ror_76() {
         let memory: &[u8] = &[ROR_76, 0x40]; // ROR $nn,X
 
-        fn _t(memory: &[u8], addr: u16, x: u8, set_carry: bool,
-              val: u8, expected_val: u8, expected_flags: u8)
-        {
+        fn _t(
+            memory: &[u8],
+            addr: u16,
+            x: u8,
+            set_carry: bool,
+            val: u8,
+            expected_val: u8,
+            expected_flags: u8,
+        ) {
             let mut cpu = Cpu::new();
             cpu.patch_memory(0, memory);
             cpu.x = x;
@@ -2321,15 +2100,15 @@ mod tests {
         }
 
         // memory    addr,    x, carry   val exp_val,  exp_flags
-        _t(memory, 0x0040, 0x20, false,    0,      0,     Z_Zero);
-        _t(memory, 0x0040, 0x20, false,    1,      0, C_Carry | Z_Zero);
-        _t(memory, 0x0040, 0x20, false,    2,      1,          0);
-        _t(memory, 0x0040, 0x20, false,    3,      1,    C_Carry);
-        _t(memory, 0x0040, 0x20,  true,    0,   0x80, N_Negative);
-        _t(memory, 0x0040, 0x20,  true,    1,   0x80, N_Negative | C_Carry);
-        _t(memory, 0x0040, 0x20,  true,    2,   0x81, N_Negative);
-        _t(memory, 0x0040, 0x20,  true,    3,   0x81, N_Negative | C_Carry);
-        _t(memory, 0x0040, 0x20,  true, 0x80,   0xC0, N_Negative);
-        _t(memory, 0x0040, 0x20,  true, 0x81,   0xC0, N_Negative | C_Carry);
+        _t(memory, 0x0040, 0x20, false, 0, 0, Z_Zero);
+        _t(memory, 0x0040, 0x20, false, 1, 0, C_Carry | Z_Zero);
+        _t(memory, 0x0040, 0x20, false, 2, 1, 0);
+        _t(memory, 0x0040, 0x20, false, 3, 1, C_Carry);
+        _t(memory, 0x0040, 0x20, true, 0, 0x80, N_Negative);
+        _t(memory, 0x0040, 0x20, true, 1, 0x80, N_Negative | C_Carry);
+        _t(memory, 0x0040, 0x20, true, 2, 0x81, N_Negative);
+        _t(memory, 0x0040, 0x20, true, 3, 0x81, N_Negative | C_Carry);
+        _t(memory, 0x0040, 0x20, true, 0x80, 0xC0, N_Negative);
+        _t(memory, 0x0040, 0x20, true, 0x81, 0xC0, N_Negative | C_Carry);
     }
 }
