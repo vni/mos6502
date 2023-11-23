@@ -947,12 +947,13 @@ mod tests {
             assert!(cpu.p == exp_p);
         }
 
-        //               0     1     2     3     4
+        //                0     1     2     3     4
         let mem1 = &[LDA_A1, 0x01, 0x04, 0x00, 0x00]; // LDA ($nn,X)
         let mem2 = &[LDA_A1, 0x01, 0x04, 0x00, 0x80]; // LDA ($nn,X)
         let mem3 = &[LDA_A1, 0x01, 0x04, 0x00, 0x55]; // LDA ($nn,X)
         let mem4 = &[LDA_A1, 0x01, 0x04, 0x00, 0xAA]; // LDA ($nn,X)
-                                                      // mem    addr     x exp_a  exp_p
+
+        //  mem    addr     x exp_a  exp_p
         _t(mem1, 0x0001, 0x01, 0x00, Z_Zero);
         _t(mem2, 0x0001, 0x01, 0x80, N_Negative);
         _t(mem3, 0x0001, 0x01, 0x55, 0);
@@ -982,7 +983,8 @@ mod tests {
         let mem2 = &[LDA_B1, 0x02, 0x03, 0x00, 0x80]; // LDA ($nn),Y
         let mem3 = &[LDA_B1, 0x02, 0x01, 0x00, 0x55]; // LDA ($nn),Y
         let mem4 = &[LDA_B1, 0x02, 0x03, 0x00, 0xAA]; // LDA ($nn),Y
-                                                      // mem    addr     y exp_a  exp_p
+
+        //  mem    addr     y exp_a  exp_p
         _t(mem1, 0x0002, 0x03, 0x00, Z_Zero);
         _t(mem2, 0x0002, 0x01, 0x80, N_Negative);
         _t(mem3, 0x0002, 0x03, 0x55, 0);
