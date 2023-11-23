@@ -25,12 +25,42 @@ mod Flags {
 #[allow(dead_code)]
 mod opcodes {
     // load
-    pub const LDA: u8 = 0x00;
-    pub const LDX: u8 = 0x00;
-    pub const LDY: u8 = 0x00;
-    pub const STA: u8 = 0x00;
-    pub const STX: u8 = 0x00;
-    pub const STY: u8 = 0x00;
+    pub const LDA_A9: u8 = 0xA9;
+    pub const LDA_AD: u8 = 0xAD;
+    pub const LDA_BD: u8 = 0xBD;
+    pub const LDA_B9: u8 = 0xB9;
+    pub const LDA_A5: u8 = 0xA5;
+    pub const LDA_B5: u8 = 0xB5;
+    pub const LDA_A1: u8 = 0xA1;
+    pub const LDA_B1: u8 = 0xB1;
+
+    pub const LDX_A2: u8 = 0xA2;
+    pub const LDX_AE: u8 = 0xAE;
+    pub const LDX_BE: u8 = 0xBE;
+    pub const LDX_A6: u8 = 0xA6;
+    pub const LDX_B6: u8 = 0xB6;
+
+    pub const LDY_A0: u8 = 0xA0;
+    pub const LDY_AC: u8 = 0xAC;
+    pub const LDY_BC: u8 = 0xBC;
+    pub const LDY_A4: u8 = 0xA4;
+    pub const LDY_B4: u8 = 0xB4;
+
+    pub const STA_8D: u8 = 0x8D;
+    pub const STA_9D: u8 = 0x9D;
+    pub const STA_99: u8 = 0x99;
+    pub const STA_85: u8 = 0x85;
+    pub const STA_95: u8 = 0x95;
+    pub const STA_81: u8 = 0x81;
+    pub const STA_91: u8 = 0x91;
+
+    pub const STX_8E: u8 = 0x8E;
+    pub const STX_86: u8 = 0x86;
+    pub const STX_96: u8 = 0x96;
+
+    pub const STY_8C: u8 = 0x8C;
+    pub const STY_84: u8 = 0x84;
+    pub const STY_94: u8 = 0x94;
 
     // transfer
     pub const TAX_AA: u8 = 0xAA;
@@ -770,6 +800,194 @@ impl Cpu {
 #[cfg(test)]
 mod tests {
     use super::{opcodes::*, Flags::*, *};
+
+    //
+    // LOAD
+    //
+    // LDA
+    #[test]
+    fn test_lda_a9() {
+        fn _t(mem: &[u8], exp_a: u8, exp_p: u8) {
+            let mut cpu = Cpu::new();
+            cpu.patch_memory(0, mem);
+            assert!(cpu.a == 0);
+            assert!(cpu.p == 0);
+            cpu.step();
+            assert!(cpu.a == exp_a);
+            assert!(cpu.p == exp_p);
+        }
+
+        let mem1 = &[LDA_A9, 0x55]; // LDA #$55
+        let mem2 = &[LDA_A9, 0]; // LDA #0 // Z_Zero
+        let mem3 = &[LDA_A9, 0x80]; // N_Negative
+        let mem4 = &[LDA_A9, 0xAA];
+
+        _t(mem1, 0x55, 0);
+        _t(mem2, 0x00, Z_Zero);
+        _t(mem3, 0x80, N_Negative);
+        _t(mem4, 0xAA, N_Negative);
+    }
+
+    #[test]
+    fn test_lda_ad() {
+        fn _t(mem: &[u8], addr: usize, exp_a: u8, exp_p: u8) {
+            let mut cpu = Cpu::new();
+            cpu.patch_memory(0, mem);
+            cpu.patch_memory(addr, &[exp_a]);
+            assert!(cpu.a == 0);
+            assert!(cpu.p == 0);
+            cpu.step();
+            assert!(cpu.a == exp_a);
+            assert!(cpu.p == exp_p);
+        }
+
+        let mem = &[LDA_AD, 0x20, 0x40]; // LDA 0x4020
+        _t(mem, 0x4020, 0x00, Z_Zero);
+        _t(mem, 0x4020, 0x80, N_Negative);
+        _t(mem, 0x4020, 0x55, 0);
+        _t(mem, 0x4020, 0xAA, N_Negative);
+    }
+
+    #[test]
+    fn test_lda_bd() {
+        fn _t(mem: &[u8], addr: usize, x: u8, exp_a: u8, exp_p: u8) {
+            let mut cpu = Cpu::new();
+            cpu.patch_memory(0, mem);
+            cpu.patch_memory(addr + x as usize, &[exp_a]);
+            cpu.x = x;
+            assert!(cpu.a == 0);
+            assert!(cpu.p == 0);
+            cpu.step();
+            assert!(cpu.a == exp_a);
+            assert!(cpu.p == exp_p);
+        }
+
+        let mem = &[LDA_BD, 0x00, 0x80]; // LDA 0x8000,X
+        _t(mem, 0x8000, 0x15, 0x00, Z_Zero);
+        _t(mem, 0x8000, 0x15, 0x80, N_Negative);
+        _t(mem, 0x8000, 0x15, 0x55, 0);
+        _t(mem, 0x8000, 0x15, 0xAA, N_Negative);
+    }
+
+    #[test]
+    fn test_lda_b9() {
+        fn _t(mem: &[u8], addr: usize, y: u8, exp_a: u8, exp_p: u8) {
+            let mut cpu = Cpu::new();
+            cpu.patch_memory(0, mem);
+            cpu.patch_memory(addr + y as usize, &[exp_a]);
+            cpu.y = y;
+            assert!(cpu.a == 0);
+            assert!(cpu.p == 0);
+            cpu.step();
+            assert!(cpu.a == exp_a);
+            assert!(cpu.p == exp_p);
+        }
+
+        let mem = &[LDA_B9, 0x00, 0x80]; // LDA 0x8000,Y
+        _t(mem, 0x8000, 0x15, 0x00, Z_Zero);
+        _t(mem, 0x8000, 0x15, 0x80, N_Negative);
+        _t(mem, 0x8000, 0x15, 0x55, 0);
+        _t(mem, 0x8000, 0x15, 0xAA, N_Negative);
+    }
+
+    #[test]
+    fn test_lda_a5() {
+        fn _t(mem: &[u8], addr: usize, exp_a: u8, exp_p: u8) {
+            let mut cpu = Cpu::new();
+            cpu.patch_memory(0, mem);
+            cpu.patch_memory(addr, &[exp_a]);
+            assert!(cpu.a == 0);
+            assert!(cpu.p == 0);
+            cpu.step();
+            assert!(cpu.a == exp_a);
+            assert!(cpu.p == exp_p);
+        }
+
+        let mem = &[LDA_A5, 0x28]; // LDA $nn
+        _t(mem, 0x0028, 0x00, Z_Zero);
+        _t(mem, 0x0028, 0x80, N_Negative);
+        _t(mem, 0x0028, 0x55, 0);
+        _t(mem, 0x0028, 0xAA, N_Negative);
+    }
+
+    #[test]
+    fn test_lda_b5() {
+        fn _t(mem: &[u8], mut addr: usize, x: u8, exp_a: u8, exp_p: u8) {
+            let mut cpu = Cpu::new();
+            cpu.patch_memory(0, mem);
+            addr = (addr + x as usize) & 0xff;
+            cpu.patch_memory(addr, &[exp_a]);
+            cpu.x = x;
+            assert!(cpu.a == 0);
+            assert!(cpu.p == 0);
+            cpu.step();
+            assert!(cpu.a == exp_a);
+            assert!(cpu.p == exp_p);
+        }
+
+        let mem = &[LDA_B5, 0x28]; // LDA $nn,X
+        _t(mem, 0x0028, 0x03, 0x00, Z_Zero);
+        _t(mem, 0x0028, 0x03, 0x80, N_Negative);
+        _t(mem, 0x0028, 0x03, 0x55, 0);
+        _t(mem, 0x0028, 0x03, 0xAA, N_Negative);
+    }
+
+    #[test]
+    fn test_lda_a1() {
+        fn _t(mem: &[u8], mut addr: usize, x: u8, exp_a: u8, exp_p: u8) {
+            let mut cpu = Cpu::new();
+            cpu.patch_memory(0, mem);
+            addr = (addr + x as usize) & 0xff;
+            cpu.patch_memory(addr, &[exp_a]);
+            cpu.x = x;
+            assert!(cpu.a == 0);
+            assert!(cpu.p == 0);
+            cpu.step();
+            assert!(cpu.a == exp_a);
+            assert!(cpu.p == exp_p);
+        }
+
+        //               0     1     2     3     4
+        let mem1 = &[LDA_A1, 0x01, 0x04, 0x00, 0x00]; // LDA ($nn,X)
+        let mem2 = &[LDA_A1, 0x01, 0x04, 0x00, 0x80]; // LDA ($nn,X)
+        let mem3 = &[LDA_A1, 0x01, 0x04, 0x00, 0x55]; // LDA ($nn,X)
+        let mem4 = &[LDA_A1, 0x01, 0x04, 0x00, 0xAA]; // LDA ($nn,X)
+                                                      // mem    addr     x exp_a  exp_p
+        _t(mem1, 0x0001, 0x01, 0x00, Z_Zero);
+        _t(mem2, 0x0001, 0x01, 0x80, N_Negative);
+        _t(mem3, 0x0001, 0x01, 0x55, 0);
+        _t(mem4, 0x0001, 0x01, 0xAA, N_Negative);
+    }
+
+    #[test]
+    fn test_lda_b1() {
+        fn _t(mem: &[u8], mut addr: usize, y: u8, exp_a: u8, exp_p: u8) {
+            let mut cpu = Cpu::new();
+            cpu.patch_memory(0, mem);
+            // addr = (addr + x as usize) & 0xff;
+            cpu.patch_memory(addr, &[exp_a]);
+            cpu.y = y;
+            assert!(cpu.a == 0);
+            assert!(cpu.p == 0);
+            cpu.step();
+            assert!(cpu.a == exp_a);
+            assert!(cpu.p == exp_p);
+        }
+
+        // TODO: FIXME:
+        // Add more test: 2 bytes in page zero points to memory not in page zero
+
+        //               0     1     2     3     4
+        let mem1 = &[LDA_B1, 0x02, 0x01, 0x00, 0x00]; // LDA ($nn),Y
+        let mem2 = &[LDA_B1, 0x02, 0x03, 0x00, 0x80]; // LDA ($nn),Y
+        let mem3 = &[LDA_B1, 0x02, 0x01, 0x00, 0x55]; // LDA ($nn),Y
+        let mem4 = &[LDA_B1, 0x02, 0x03, 0x00, 0xAA]; // LDA ($nn),Y
+                                                      // mem    addr     y exp_a  exp_p
+        _t(mem1, 0x0002, 0x03, 0x00, Z_Zero);
+        _t(mem2, 0x0002, 0x01, 0x80, N_Negative);
+        _t(mem3, 0x0002, 0x03, 0x55, 0);
+        _t(mem4, 0x0002, 0x01, 0xAA, N_Negative);
+    }
 
     //
     // NOP
