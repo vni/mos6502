@@ -969,9 +969,11 @@ mod tests {
     //
     // LOAD
     //
-    // LDA
+    //
+    // LOAD - LDA
+    //
     #[test]
-    fn test_lda_a9() {
+    fn test_lda_a9() { // LDA #$nn
         fn _t(mem: &[u8], exp_a: u8, exp_p: u8) {
             let mut cpu = Cpu::new();
             cpu.patch_memory(0, mem);
@@ -982,8 +984,8 @@ mod tests {
             assert!(cpu.p == exp_p);
         }
 
-        let mem1 = &[LDA_A9, 0x55]; // LDA #$55
-        let mem2 = &[LDA_A9, 0]; // LDA #0 // Z_Zero
+        let mem1 = &[LDA_A9, 0x55];
+        let mem2 = &[LDA_A9, 0];    // LDA #0 // Z_Zero
         let mem3 = &[LDA_A9, 0x80]; // N_Negative
         let mem4 = &[LDA_A9, 0xAA];
 
@@ -994,7 +996,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lda_ad() {
+    fn test_lda_ad() { // LDA $nnnn
         fn _t(mem: &[u8], addr: usize, exp_a: u8, exp_p: u8) {
             let mut cpu = Cpu::new();
             cpu.patch_memory(0, mem);
@@ -1006,7 +1008,7 @@ mod tests {
             assert!(cpu.p == exp_p);
         }
 
-        let mem = &[LDA_AD, 0x20, 0x40]; // LDA 0x4020
+        let mem = &[LDA_AD, 0x20, 0x40];
         _t(mem, 0x4020, 0x00, Z_Zero);
         _t(mem, 0x4020, 0x80, N_Negative);
         _t(mem, 0x4020, 0x55, 0);
@@ -1014,7 +1016,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lda_bd() {
+    fn test_lda_bd() { // LDA $nnnn,X
         fn _t(mem: &[u8], addr: usize, x: u8, exp_a: u8, exp_p: u8) {
             let mut cpu = Cpu::new();
             cpu.patch_memory(0, mem);
@@ -1027,7 +1029,7 @@ mod tests {
             assert!(cpu.p == exp_p);
         }
 
-        let mem = &[LDA_BD, 0x00, 0x80]; // LDA 0x8000,X
+        let mem = &[LDA_BD, 0x00, 0x80];
         _t(mem, 0x8000, 0x15, 0x00, Z_Zero);
         _t(mem, 0x8000, 0x15, 0x80, N_Negative);
         _t(mem, 0x8000, 0x15, 0x55, 0);
@@ -1035,7 +1037,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lda_b9() {
+    fn test_lda_b9() { // LDA $nnnn,Y
         fn _t(mem: &[u8], addr: usize, y: u8, exp_a: u8, exp_p: u8) {
             let mut cpu = Cpu::new();
             cpu.patch_memory(0, mem);
@@ -1048,7 +1050,7 @@ mod tests {
             assert!(cpu.p == exp_p);
         }
 
-        let mem = &[LDA_B9, 0x00, 0x80]; // LDA 0x8000,Y
+        let mem = &[LDA_B9, 0x00, 0x80];
         _t(mem, 0x8000, 0x15, 0x00, Z_Zero);
         _t(mem, 0x8000, 0x15, 0x80, N_Negative);
         _t(mem, 0x8000, 0x15, 0x55, 0);
@@ -1056,7 +1058,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lda_a5() {
+    fn test_lda_a5() { // LDA $nn
         fn _t(mem: &[u8], addr: usize, exp_a: u8, exp_p: u8) {
             let mut cpu = Cpu::new();
             cpu.patch_memory(0, mem);
@@ -1068,7 +1070,7 @@ mod tests {
             assert!(cpu.p == exp_p);
         }
 
-        let mem = &[LDA_A5, 0x28]; // LDA $nn
+        let mem = &[LDA_A5, 0x28];
         _t(mem, 0x0028, 0x00, Z_Zero);
         _t(mem, 0x0028, 0x80, N_Negative);
         _t(mem, 0x0028, 0x55, 0);
@@ -1076,7 +1078,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lda_b5() {
+    fn test_lda_b5() { // LDA $nn,X
         fn _t(mem: &[u8], x: u8, exp_a: u8, exp_p: u8) {
             let mut cpu = Cpu::new();
             cpu.patch_memory(0, mem);
@@ -1088,7 +1090,7 @@ mod tests {
             assert!(cpu.p == exp_p);
         }
 
-        let mut mem: [u8; MEM_SZ] = [0; MEM_SZ]; // LDA $nn,X
+        let mut mem: [u8; MEM_SZ] = [0; MEM_SZ];
         mem[0] = LDA_B5;
         mem[1] = 0x28;
 
@@ -1159,6 +1161,298 @@ mod tests {
         _t(mem2, 0x01, 0x80, N_Negative);
         _t(mem3, 0x03, 0x55, 0);
         _t(mem4, 0x01, 0xAA, N_Negative);
+    }
+
+    //
+    // LOAD - LDX
+    //
+    #[test]
+    fn test_ldx_a2() { // LDX #$nn
+        fn _t(mem: &[u8], exp_x: u8, exp_p: u8) {
+            let mut cpu = Cpu::new();
+            cpu.patch_memory(0, mem);
+            assert!(cpu.x == 0);
+            assert!(cpu.p == 0);
+            cpu.step();
+            assert!(cpu.x == exp_x);
+            assert!(cpu.p == exp_p);
+        }
+
+        let mem1 = &[LDX_A2, 0];
+        let mem2 = &[LDX_A2, 0x55];
+        let mem3 = &[LDX_A2, 0x80];
+        let mem4 = &[LDX_A2, 0xAA];
+
+        _t(mem1, 0, Z_Zero);
+        _t(mem2, 0x55, 0);
+        _t(mem3, 0x80, N_Negative);
+        _t(mem4, 0xAA, N_Negative);
+    }
+
+    #[test]
+    fn test_ldx_ae() { // LDX $nnnn
+        fn _t(mem: &[u8], exp_x: u8, exp_p: u8) {
+            let mut cpu = Cpu::new();
+            cpu.patch_memory(0, mem);
+            assert!(cpu.x == 0);
+            assert!(cpu.p == 0);
+            cpu.step();
+            assert!(cpu.x == exp_x);
+            assert!(cpu.p == exp_p);
+        }
+
+        let mut mem: [u8; MEM_SZ] = [0; MEM_SZ];
+        mem[0] = LDX_AE;
+        mem[1] = 0x20;
+        mem[2] = 0x40;
+
+        mem[0x4020] = 0;
+        _t(&mem, 0x00, Z_Zero);
+
+        mem[0x4020] = 0x80;
+        _t(&mem, 0x80, N_Negative);
+
+        mem[0x4020] = 0x55;
+        _t(&mem, 0x55, 0);
+
+        mem[0x4020] = 0xAA;
+        _t(&mem, 0xAA, N_Negative);
+    }
+
+    #[test]
+    fn test_ldx_be() { // LDX $nnnn,Y
+        fn _t(mem: &[u8], y: u8, exp_x: u8, exp_p: u8) {
+            let mut cpu = Cpu::new();
+            cpu.patch_memory(0, mem);
+            cpu.y = y;
+            assert!(cpu.x == 0);
+            assert!(cpu.p == 0);
+            cpu.step();
+            assert!(cpu.x == exp_x);
+            assert!(cpu.p == exp_p);
+        }
+
+        let mut mem: [u8; MEM_SZ] = [0; MEM_SZ];
+        mem[0] = LDX_BE;
+        mem[1] = 0x60;
+        mem[2] = 0x70;
+
+        mem[0x7075] = 0;
+        _t(&mem, 0x15, 0x00, Z_Zero);
+
+        mem[0x7075] = 0x55;
+        _t(&mem, 0x15, 0x55, 0);
+
+        mem[0x7075] = 0x80;
+        _t(&mem, 0x15, 0x80, N_Negative);
+
+        mem[0x7075] = 0xAA;
+        _t(&mem, 0x15, 0xAA, N_Negative);
+    }
+
+    #[test]
+    fn test_ldx_a6() { // LDX $nn
+        fn _t(mem: &[u8], exp_x: u8, exp_p: u8) {
+            let mut cpu = Cpu::new();
+            cpu.patch_memory(0, mem);
+            assert!(cpu.x == 0);
+            assert!(cpu.p == 0);
+            cpu.step();
+            assert!(cpu.x == exp_x);
+            assert!(cpu.p == exp_p);
+        }
+
+        let mut mem: [u8; MEM_SZ] = [0; MEM_SZ];
+        mem[0] = LDX_A6;
+        mem[1] = 0x60;
+
+        mem[0x0060] = 0;
+        _t(&mem, 0x00, Z_Zero);
+
+        mem[0x0060] = 0x55;
+        _t(&mem, 0x55, 0);
+
+        mem[0x0060] = 0x80;
+        _t(&mem, 0x80, N_Negative);
+
+        mem[0x0060] = 0xAA;
+        _t(&mem, 0xAA, N_Negative);
+    }
+
+    #[test]
+    fn test_ldx_b6() { // LDX $nn,Y
+        fn _t(mem: &[u8], y: u8, exp_x: u8, exp_p: u8) {
+            let mut cpu = Cpu::new();
+            cpu.patch_memory(0, mem);
+            cpu.y = y;
+            assert!(cpu.x == 0);
+            assert!(cpu.p == 0);
+            cpu.step();
+            assert!(cpu.x == exp_x);
+            assert!(cpu.p == exp_p);
+        }
+
+        let mut mem: [u8; MEM_SZ] = [0; MEM_SZ];
+        mem[0] = LDX_B6;
+        mem[1] = 0x60;
+
+        mem[0x0075] = 0;
+        _t(&mem, 0x15, 0x00, Z_Zero);
+
+        mem[0x0075] = 0x55;
+        _t(&mem, 0x15, 0x55, 0);
+
+        mem[0x0075] = 0x80;
+        _t(&mem, 0x15, 0x80, N_Negative);
+
+        mem[0x0075] = 0xAA;
+        _t(&mem, 0x15, 0xAA, N_Negative);
+    }
+
+    //
+    // LOAD - LDY
+    //
+    #[test]
+    fn test_ldy_a0() { // LDY #$nn
+        fn _t(mem: &[u8], exp_y: u8, exp_p: u8) {
+            let mut cpu = Cpu::new();
+            cpu.patch_memory(0, mem);
+            assert!(cpu.y == 0);
+            assert!(cpu.p == 0);
+            cpu.step();
+            assert!(cpu.y == exp_y);
+            assert!(cpu.p == exp_p);
+        }
+
+        let mem1 = &[LDY_A0, 0];
+        let mem2 = &[LDY_A0, 0x55];
+        let mem3 = &[LDY_A0, 0x80];
+        let mem4 = &[LDY_A0, 0xAA];
+
+        _t(mem1, 0, Z_Zero);
+        _t(mem2, 0x55, 0);
+        _t(mem3, 0x80, N_Negative);
+        _t(mem4, 0xAA, N_Negative);
+    }
+
+    #[test]
+    fn test_ldy_ac() { // LDY $nnnn
+        fn _t(mem: &[u8], exp_y: u8, exp_p: u8) {
+            let mut cpu = Cpu::new();
+            cpu.patch_memory(0, mem);
+            assert!(cpu.y == 0);
+            assert!(cpu.p == 0);
+            cpu.step();
+            assert!(cpu.y == exp_y);
+            assert!(cpu.p == exp_p);
+        }
+
+        let mut mem: [u8; MEM_SZ] = [0; MEM_SZ];
+        mem[0] = LDY_AC;
+        mem[1] = 0x20;
+        mem[2] = 0x40;
+
+        mem[0x4020] = 0;
+        _t(&mem, 0x00, Z_Zero);
+
+        mem[0x4020] = 0x80;
+        _t(&mem, 0x80, N_Negative);
+
+        mem[0x4020] = 0x55;
+        _t(&mem, 0x55, 0);
+
+        mem[0x4020] = 0xAA;
+        _t(&mem, 0xAA, N_Negative);
+    }
+
+    #[test]
+    fn test_ldy_bc() { // LDY $nnnn,X
+        fn _t(mem: &[u8], x: u8, exp_y: u8, exp_p: u8) {
+            let mut cpu = Cpu::new();
+            cpu.patch_memory(0, mem);
+            cpu.x = x;
+            assert!(cpu.y == 0);
+            assert!(cpu.p == 0);
+            cpu.step();
+            assert!(cpu.y == exp_y);
+            assert!(cpu.p == exp_p);
+        }
+
+        let mut mem: [u8; MEM_SZ] = [0; MEM_SZ];
+        mem[0] = LDY_BC;
+        mem[1] = 0x60;
+        mem[2] = 0x70;
+
+        mem[0x7075] = 0;
+        _t(&mem, 0x15, 0x00, Z_Zero);
+
+        mem[0x7075] = 0x55;
+        _t(&mem, 0x15, 0x55, 0);
+
+        mem[0x7075] = 0x80;
+        _t(&mem, 0x15, 0x80, N_Negative);
+
+        mem[0x7075] = 0xAA;
+        _t(&mem, 0x15, 0xAA, N_Negative);
+    }
+
+    #[test]
+    fn test_ldy_a4() { // LDY $nn
+        fn _t(mem: &[u8], exp_y: u8, exp_p: u8) {
+            let mut cpu = Cpu::new();
+            cpu.patch_memory(0, mem);
+            assert!(cpu.y == 0);
+            assert!(cpu.p == 0);
+            cpu.step();
+            assert!(cpu.y == exp_y);
+            assert!(cpu.p == exp_p);
+        }
+
+        let mut mem: [u8; MEM_SZ] = [0; MEM_SZ];
+        mem[0] = LDY_A4;
+        mem[1] = 0x60;
+
+        mem[0x0060] = 0;
+        _t(&mem, 0x00, Z_Zero);
+
+        mem[0x0060] = 0x55;
+        _t(&mem, 0x55, 0);
+
+        mem[0x0060] = 0x80;
+        _t(&mem, 0x80, N_Negative);
+
+        mem[0x0060] = 0xAA;
+        _t(&mem, 0xAA, N_Negative);
+    }
+
+    #[test]
+    fn test_ldy_b4() { // LDY $nn,X
+        fn _t(mem: &[u8], x: u8, exp_y: u8, exp_p: u8) {
+            let mut cpu = Cpu::new();
+            cpu.patch_memory(0, mem);
+            cpu.x = x;
+            assert!(cpu.y == 0);
+            assert!(cpu.p == 0);
+            cpu.step();
+            assert!(cpu.y == exp_y);
+            assert!(cpu.p == exp_p);
+        }
+
+        let mut mem: [u8; MEM_SZ] = [0; MEM_SZ];
+        mem[0] = LDY_B4;
+        mem[1] = 0x60;
+
+        mem[0x0075] = 0;
+        _t(&mem, 0x15, 0x00, Z_Zero);
+
+        mem[0x0075] = 0x55;
+        _t(&mem, 0x15, 0x55, 0);
+
+        mem[0x0075] = 0x80;
+        _t(&mem, 0x15, 0x80, N_Negative);
+
+        mem[0x0075] = 0xAA;
+        _t(&mem, 0x15, 0xAA, N_Negative);
     }
 
     //
