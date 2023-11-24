@@ -1,3 +1,12 @@
+// TODO: Make Cpu reference to memory, not owning it
+//       (it may speed up tests a little bit)
+
+// TODO: Make all the tests look the same: all have some _t function
+//       All have ready memory, no memory modification during tests,
+//          no pre-calculated addresses passed to test
+
+const MEM_SZ: usize = 65_536;
+
 #[derive(Debug, PartialEq)]
 pub(crate) struct Cpu {
     a: u8,   // accumulator
@@ -7,7 +16,7 @@ pub(crate) struct Cpu {
     s: u8,   // stack
     p: u8,   // flags
 
-    memory: [u8; 65536], // Silly, but currently memory is part of the processor
+    memory: [u8; MEM_SZ], // Silly, but currently memory is part of the processor
 }
 
 mod Flags {
@@ -162,7 +171,7 @@ impl Cpu {
             s: 0xff,
             p: 0,
 
-            memory: [0; 65536],
+            memory: [0; MEM_SZ],
         }
     }
 
@@ -301,9 +310,104 @@ impl Cpu {
         let opcode = self.memory[self.pc as usize];
         self.pc += 1;
         match opcode {
+            //
+            // LOAD
+            //
+            // LOAD - LDA
+            opcodes::LDA_A9 => {
+                self.a = self.memory[self.pc as usize];
+                self.pc += 1;
+                self.update_negative(self.a & 0x80 != 0);
+                self.update_zero(self.a == 0);
+            }
+            opcodes::LDA_AD => {
+                let addr = self.get_addr() as usize;
+                self.a = self.memory[addr];
+
+                self.pc += 2;
+                self.update_negative(self.a & 0x80 != 0);
+                self.update_zero(self.a == 0);
+            }
+            opcodes::LDA_BD => {
+                let addr = self.get_addr() as usize + self.x as usize;
+                self.a = self.memory[addr];
+
+                self.pc += 2;
+                self.update_negative(self.a & 0x80 != 0);
+                self.update_zero(self.a == 0);
+            }
+            opcodes::LDA_B9 => {
+                let addr = self.get_addr() as usize + self.y as usize;
+                self.a = self.memory[addr];
+
+                self.pc += 2;
+                self.update_negative(self.a & 0x80 != 0);
+                self.update_zero(self.a == 0);
+            }
+            opcodes::LDA_A5 => {
+                let addr = self.get_addr_zero_page() as usize ;
+                self.a = self.memory[addr];
+
+                self.pc += 1;
+                self.update_negative(self.a & 0x80 != 0);
+                self.update_zero(self.a == 0);
+            }
+            opcodes::LDA_B5 => {
+                let mut addr = self.get_addr_zero_page() as usize;
+                addr = (addr + self.x as usize) & 0xff;
+                self.a = self.memory[addr];
+
+                self.pc += 1;
+                self.update_negative(self.a & 0x80 != 0);
+                self.update_zero(self.a == 0);
+            }
+            opcodes::LDA_A1 => {
+                let mut addr = self.get_addr_zero_page() as usize;
+                // println!("nn: {:02x}", addr);
+                addr = (addr + self.x as usize) & 0xff;
+                // println!("x: {:02x}", self.x);
+                // println!("resulting addr1: {:02x}", addr);
+
+                // println!("before cpu.a: {:02x}", self.a);
+
+                let mut addr2 = self.memory[addr] as usize;
+                addr2 |= (self.memory[addr + 1] as usize) << 8;
+                self.a = self.memory[addr2];
+
+                // let mut addr3 = (self.memory[addr2+1] as usize) << 8;
+                // addr3 += self.memory[addr2] as usize;
+
+                // // println!("addr2: {:04x}", addr2);
+                // self.a = self.memory[addr3];
+                // // println!("after cpu.a: {:02x}", self.a);
+
+                self.pc += 1;
+                self.update_negative(self.a & 0x80 != 0);
+                self.update_zero(self.a == 0);
+            }
+            opcodes::LDA_B1 => {
+                let mut addr = self.get_addr_zero_page() as usize;
+
+                let mut addr2 = (self.memory[addr + 1] as usize) << 8;
+                addr2 += self.memory[addr] as usize + self.y as usize;
+
+                self.a = self.memory[addr2];
+
+                self.pc += 1;
+                self.update_negative(self.a & 0x80 != 0);
+                self.update_zero(self.a == 0);
+            }
+
+            //
+            // NOP
+            //
             opcodes::NOP_EA => {
                 // NOP, 2 cycles
             }
+
+            //
+            // INCREMENT
+            //
             opcodes::INX_E8 => {
                 // INX, 2 cycles, Flags: n,z
                 let result: u16 = self.x as u16 + 1;
@@ -912,11 +1016,9 @@ mod tests {
 
     #[test]
     fn test_lda_b5() {
-        fn _t(mem: &[u8], mut addr: usize, x: u8, exp_a: u8, exp_p: u8) {
+        fn _t(mem: &[u8], x: u8, exp_a: u8, exp_p: u8) {
             let mut cpu = Cpu::new();
             cpu.patch_memory(0, mem);
-            addr = (addr + x as usize) & 0xff;
-            cpu.patch_memory(addr, &[exp_a]);
             cpu.x = x;
             assert!(cpu.a == 0);
             assert!(cpu.p == 0);
@@ -925,20 +1027,28 @@ mod tests {
             assert!(cpu.p == exp_p);
         }
 
-        let mem = &[LDA_B5, 0x28]; // LDA $nn,X
-        _t(mem, 0x0028, 0x03, 0x00, Z_Zero);
-        _t(mem, 0x0028, 0x03, 0x80, N_Negative);
-        _t(mem, 0x0028, 0x03, 0x55, 0);
-        _t(mem, 0x0028, 0x03, 0xAA, N_Negative);
+        let mut mem: [u8; MEM_SZ] = [0; MEM_SZ]; // LDA $nn,X
+        mem[0] = LDA_B5;
+        mem[1] = 0x28;
+
+        mem[0x28 + 0x03] = 0x00;
+        _t(&mem, 0x03, 0x00, Z_Zero);
+
+        mem[0x28 + 0x03] = 0x80;
+        _t(&mem, 0x03, 0x80, N_Negative);
+
+        mem[0x28 + 0x03] = 0x55;
+        _t(&mem, 0x03, 0x55, 0);
+
+        mem[0x28 + 0x03] = 0xAA;
+        _t(&mem, 0x03, 0xAA, N_Negative);
     }
 
     #[test]
     fn test_lda_a1() {
-        fn _t(mem: &[u8], mut addr: usize, x: u8, exp_a: u8, exp_p: u8) {
+        fn _t(mem: &[u8], x: u8, exp_a: u8, exp_p: u8) {
             let mut cpu = Cpu::new();
             cpu.patch_memory(0, mem);
-            addr = (addr + x as usize) & 0xff;
-            cpu.patch_memory(addr, &[exp_a]);
             cpu.x = x;
             assert!(cpu.a == 0);
             assert!(cpu.p == 0);
@@ -953,20 +1063,18 @@ mod tests {
         let mem3 = &[LDA_A1, 0x01, 0x04, 0x00, 0x55]; // LDA ($nn,X)
         let mem4 = &[LDA_A1, 0x01, 0x04, 0x00, 0xAA]; // LDA ($nn,X)
 
-        //  mem    addr     x exp_a  exp_p
-        _t(mem1, 0x0001, 0x01, 0x00, Z_Zero);
-        _t(mem2, 0x0001, 0x01, 0x80, N_Negative);
-        _t(mem3, 0x0001, 0x01, 0x55, 0);
-        _t(mem4, 0x0001, 0x01, 0xAA, N_Negative);
+        //  mem     x exp_a  exp_p
+        _t(mem1, 0x01, 0x00, Z_Zero);
+        _t(mem2, 0x01, 0x80, N_Negative);
+        _t(mem3, 0x01, 0x55, 0);
+        _t(mem4, 0x01, 0xAA, N_Negative);
     }
 
     #[test]
     fn test_lda_b1() {
-        fn _t(mem: &[u8], mut addr: usize, y: u8, exp_a: u8, exp_p: u8) {
+        fn _t(mem: &[u8], y: u8, exp_a: u8, exp_p: u8) {
             let mut cpu = Cpu::new();
             cpu.patch_memory(0, mem);
-            // addr = (addr + x as usize) & 0xff;
-            cpu.patch_memory(addr, &[exp_a]);
             cpu.y = y;
             assert!(cpu.a == 0);
             assert!(cpu.p == 0);
@@ -977,6 +1085,7 @@ mod tests {
 
         // TODO: FIXME:
         // Add more test: 2 bytes in page zero points to memory not in page zero
+        // TODO Expand this tests so that memory address is outside of page zero
 
         //               0     1     2     3     4
         let mem1 = &[LDA_B1, 0x02, 0x01, 0x00, 0x00]; // LDA ($nn),Y
@@ -984,11 +1093,11 @@ mod tests {
         let mem3 = &[LDA_B1, 0x02, 0x01, 0x00, 0x55]; // LDA ($nn),Y
         let mem4 = &[LDA_B1, 0x02, 0x03, 0x00, 0xAA]; // LDA ($nn),Y
 
-        //  mem    addr     y exp_a  exp_p
-        _t(mem1, 0x0002, 0x03, 0x00, Z_Zero);
-        _t(mem2, 0x0002, 0x01, 0x80, N_Negative);
-        _t(mem3, 0x0002, 0x03, 0x55, 0);
-        _t(mem4, 0x0002, 0x01, 0xAA, N_Negative);
+        //  mem     y exp_a  exp_p
+        _t(mem1, 0x03, 0x00, Z_Zero);
+        _t(mem2, 0x01, 0x80, N_Negative);
+        _t(mem3, 0x03, 0x55, 0);
+        _t(mem4, 0x01, 0xAA, N_Negative);
     }
 
     //
