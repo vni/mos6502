@@ -3,6 +3,9 @@
 * http://www.oxyron.de/html/opcodes02.html
 * https://www.pagetable.com/c64ref/6502/?tab=3
 
+## 6502 addressing modes
+* http://www.emulator101.com/6502-addressing-modes.html
+
 ## Assembly
 %00001111 -- binary
 $FA       -- hex
