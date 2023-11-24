@@ -244,17 +244,22 @@ impl Cpu {
     }
 
     fn set_pc_to_current_addr_in_memory(&mut self) {
-        self.pc = self.get_addr();
+        self.pc = self.get_addr() as u16;
     }
 
-    fn get_addr(&mut self) -> u16 {
-        let mut addr: u16 = self.memory[self.pc as usize] as u16;
-        addr |= (self.memory[self.pc as usize + 1] as u16) << 8;
+    // in the ideal world get_addr and get_addr_zero_page would return u16
+    // as the address, cause we have only 64K of RAM
+    //
+    // but usize is more appropriate cause it makes me do less `as usize`
+    // conversions to point inside rust [u8; ...] array
+    fn get_addr(&mut self) -> usize {
+        let mut addr = self.memory[self.pc as usize] as usize;
+        addr |= (self.memory[self.pc as usize + 1] as usize) << 8;
         addr
     }
 
-    fn get_addr_zero_page(&mut self) -> u16 {
-        self.memory[self.pc as usize] as u16
+    fn get_addr_zero_page(&mut self) -> usize {
+        self.memory[self.pc as usize] as usize
     }
 
     fn _asl_inst(&mut self, mut val: u8) -> u8 {
@@ -396,6 +401,78 @@ impl Cpu {
                 self.pc += 1;
                 self.update_negative(self.a & 0x80 != 0);
                 self.update_zero(self.a == 0);
+            }
+
+            // LOAD - LDX
+            opcodes::LDX_A2 => { // LDX #$nn
+                self.x = self.memory[self.pc as usize];
+                self.update_negative(self.x & 0x80 != 0);
+                self.update_zero(self.x == 0);
+                self.pc += 1;
+            }
+            opcodes::LDX_AE => { // LDX $nnnn
+                let addr = self.get_addr();
+                self.x = self.memory[addr];
+                self.update_negative(self.x & 0x80 != 0);
+                self.update_zero(self.x == 0);
+                self.pc += 2;
+            }
+            opcodes::LDX_BE => { // LDX $nnnn,Y
+                let addr = self.get_addr() + self.y as usize;
+                self.x = self.memory[addr];
+                self.update_negative(self.x & 0x80 != 0);
+                self.update_zero(self.x == 0);
+                self.pc += 2;
+            }
+            opcodes::LDX_A6 => { // LDX $nn
+                let addr = self.get_addr_zero_page();
+                self.x = self.memory[addr];
+                self.update_negative(self.x & 0x80 != 0);
+                self.update_zero(self.x == 0);
+                self.pc += 1;
+            }
+            opcodes::LDX_B6 => { // LDX $nn,Y
+                let addr = self.get_addr_zero_page() + self.y as usize;
+                self.x = self.memory[addr];
+                self.update_negative(self.x & 0x80 != 0);
+                self.update_zero(self.x == 0);
+                self.pc += 1;
+            }
+
+            // LOAD - LDY
+            opcodes::LDY_A0 => { // LDY #$nn
+                self.y = self.memory[self.pc as usize];
+                self.update_negative(self.y & 0x80 != 0);
+                self.update_zero(self.y == 0);
+                self.pc += 1;
+            }
+            opcodes::LDY_AC => { // LDY $nnnn
+                let addr = self.get_addr();
+                self.y = self.memory[addr];
+                self.update_negative(self.y & 0x80 != 0);
+                self.update_zero(self.y == 0);
+                self.pc += 2;
+            }
+            opcodes::LDY_BC => { // LDY $nnnn,X
+                let addr = self.get_addr() + self.x as usize;
+                self.y = self.memory[addr];
+                self.update_negative(self.y & 0x80 != 0);
+                self.update_zero(self.y == 0);
+                self.pc += 2;
+            }
+            opcodes::LDY_A4 => { // LDY $nn
+                let addr = self.get_addr_zero_page();
+                self.y = self.memory[addr];
+                self.update_negative(self.y & 0x80 != 0);
+                self.update_zero(self.y == 0);
+                self.pc += 1;
+            }
+            opcodes::LDY_B4 => { // LDY $nn,X
+                let addr = self.get_addr_zero_page() + self.x as usize;
+                self.y = self.memory[addr];
+                self.update_negative(self.y & 0x80 != 0);
+                self.update_zero(self.y == 0);
+                self.pc += 1;
             }
 
             //
@@ -609,28 +686,25 @@ impl Cpu {
             opcodes::ASL_0E => {
                 // ASL $nnnn
                 let addr = self.get_addr();
-                self.memory[addr as usize] = self._asl_inst(self.memory[addr as usize]);
+                self.memory[addr] = self._asl_inst(self.memory[addr]);
                 self.pc += 2;
             }
             opcodes::ASL_1E => {
                 // ASL $nnnn,X
-                let mut addr = self.get_addr();
-                addr += self.x as u16;
-                self.memory[addr as usize] = self._asl_inst(self.memory[addr as usize]);
+                let addr = self.get_addr() + self.x as usize;
+                self.memory[addr] = self._asl_inst(self.memory[addr]);
                 self.pc += 2;
             }
             opcodes::ASL_06 => {
                 // ASL $nn
                 let addr = self.get_addr_zero_page();
-                self.memory[addr as usize] = self._asl_inst(self.memory[addr as usize]);
+                self.memory[addr] = self._asl_inst(self.memory[addr]);
                 self.pc += 1;
             }
             opcodes::ASL_16 => {
                 // ASL $nn,X
-                let mut addr = self.get_addr_zero_page();
-                addr += self.x as u16;
-                addr &= 0xff;
-                self.memory[addr as usize] = self._asl_inst(self.memory[addr as usize]);
+                let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
+                self.memory[addr] = self._asl_inst(self.memory[addr]);
                 self.pc += 1;
             }
 
@@ -642,29 +716,26 @@ impl Cpu {
             opcodes::LSR_4E => {
                 // LSR $nnnn
                 let addr = self.get_addr();
-                self.memory[addr as usize] = self._lsr_inst(self.memory[addr as usize]);
+                self.memory[addr] = self._lsr_inst(self.memory[addr]);
                 self.pc += 2;
             }
             opcodes::LSR_5E => {
                 // LSR $nnnn,X
                 let mut addr = self.get_addr();
-                addr += self.x as u16;
-                self.memory[addr as usize] = self._lsr_inst(self.memory[addr as usize]);
+                addr += self.x as usize;
+                self.memory[addr] = self._lsr_inst(self.memory[addr]);
                 self.pc += 2;
             }
             opcodes::LSR_46 => {
                 // LSR $nn
                 let addr = self.get_addr_zero_page();
-                self.memory[addr as usize] = self._lsr_inst(self.memory[addr as usize]);
+                self.memory[addr] = self._lsr_inst(self.memory[addr]);
                 self.pc += 1;
             }
             opcodes::LSR_56 => {
                 // LSR $nn,X
-                let mut addr = self.get_addr_zero_page();
-                addr += self.x as u16;
-                addr &= 0xff;
-
-                self.memory[addr as usize] = self._lsr_inst(self.memory[addr as usize]);
+                let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
+                self.memory[addr] = self._lsr_inst(self.memory[addr]);
                 self.pc += 1;
             }
 
@@ -675,30 +746,25 @@ impl Cpu {
             }
             opcodes::ROL_2E => {
                 // ROL $nnnn
-                let addr: usize = self.get_addr() as usize;
+                let addr = self.get_addr();
                 self.memory[addr] = self._rol_inst(self.memory[addr]);
                 self.pc += 2;
             }
             opcodes::ROL_3E => {
                 // ROL $nnnn,X
-                let mut addr: usize = self.get_addr() as usize;
-                addr += self.x as usize;
-
+                let addr = self.get_addr() + self.x as usize;
                 self.memory[addr] = self._rol_inst(self.memory[addr]);
                 self.pc += 2;
             }
             opcodes::ROL_26 => {
                 // ROL $nn
-                let addr: usize = self.get_addr_zero_page() as usize;
+                let addr = self.get_addr_zero_page();
                 self.memory[addr] = self._rol_inst(self.memory[addr]);
                 self.pc += 1;
             }
             opcodes::ROL_36 => {
                 // ROL $nn,X
-                let mut addr: usize = self.get_addr_zero_page() as usize;
-                addr += self.x as usize;
-                addr &= 0xff;
-
+                let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
                 self.memory[addr] = self._rol_inst(self.memory[addr]);
                 self.pc += 1;
             }
@@ -710,30 +776,25 @@ impl Cpu {
             }
             opcodes::ROR_6E => {
                 // ROR $nnnn
-                let addr: usize = self.get_addr() as usize;
+                let addr = self.get_addr();
                 self.memory[addr] = self._ror_inst(self.memory[addr]);
                 self.pc += 2;
             }
             opcodes::ROR_7E => {
                 // ROR $nnnn,X
-                let mut addr: usize = self.get_addr() as usize;
-                addr += self.x as usize;
-
+                let addr = self.get_addr() + self.x as usize;
                 self.memory[addr] = self._ror_inst(self.memory[addr]);
                 self.pc += 2;
             }
             opcodes::ROR_66 => {
                 // ROR $nn
-                let addr: usize = self.get_addr_zero_page() as usize;
+                let addr = self.get_addr_zero_page();
                 self.memory[addr] = self._ror_inst(self.memory[addr]);
                 self.pc += 1;
             }
             opcodes::ROR_76 => {
                 // ROR $nn,X
-                let mut addr: usize = self.get_addr_zero_page() as usize;
-                addr += self.x as usize;
-                addr &= 0xff;
-
+                let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
                 self.memory[addr] = self._ror_inst(self.memory[addr]);
                 self.pc += 1;
             }
