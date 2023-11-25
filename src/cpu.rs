@@ -476,6 +476,49 @@ impl Cpu {
             }
 
             //
+            // LOAD - STA
+            //
+            // TODO
+
+            //
+            // LOAD - STX
+            //
+            opcodes::STX_8E => { // STX $nnnn
+                let addr = self.get_addr();
+                self.memory[addr] = self.x;
+                self.pc += 2;
+            }
+            opcodes::STX_86 => { // STX $nn
+                let addr = self.get_addr_zero_page();
+                self.memory[addr] = self.x;
+                self.pc += 1;
+            }
+            opcodes::STX_96 => { // STX $nn,Y
+                let addr = (self.get_addr_zero_page() + self.y as usize) & 0xff;
+                self.memory[addr] = self.x;
+                self.pc += 1;
+            }
+
+            //
+            // LOAD - STY
+            //
+            opcodes::STY_8C => { // STY $nnnn
+                let addr = self.get_addr();
+                self.memory[addr] = self.y;
+                self.pc += 2;
+            }
+            opcodes::STY_84 => { // STY $nn
+                let addr = self.get_addr_zero_page();
+                self.memory[addr] = self.y;
+                self.pc += 1;
+            }
+            opcodes::STY_94 => { // STY $nn,X
+                let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
+                self.memory[addr] = self.y;
+                self.pc += 1;
+            }
+
+            //
             // NOP
             //
             opcodes::NOP_EA => {
@@ -1453,6 +1496,143 @@ mod tests {
 
         mem[0x0075] = 0xAA;
         _t(&mem, 0x15, 0xAA, N_Negative);
+    }
+
+    //
+    // LOAD - STA
+    //
+
+    // FIXME: Finish
+
+    //
+    // LOAD - STX
+    //
+    #[test]
+    fn test_stx_8e() { // STX $nnnn
+        fn _t(mem: &[u8], addr: usize, x: u8) {
+            let mut cpu = Cpu::new();
+            cpu.patch_memory(0, mem);
+            cpu.x = x;
+            cpu.step();
+            assert!(cpu.memory[addr] == x);
+        }
+
+        let mut mem: [u8; MEM_SZ] = [0; MEM_SZ];
+        mem[0] = STX_8E;
+        mem[1] = 0x60;
+        mem[2] = 0x80;
+
+        _t(&mem, 0x8060, 0x55);
+        _t(&mem, 0x8060, 0x00);
+        _t(&mem, 0x8060, 0x80);
+        _t(&mem, 0x8060, 0xAA);
+    }
+
+    #[test]
+    fn test_stx_86() { // STX $nn
+        fn _t(mem: &[u8], addr: usize, x: u8) {
+            let mut cpu = Cpu::new();
+            cpu.patch_memory(0, mem);
+            cpu.x = x;
+            cpu.step();
+            assert!(cpu.memory[addr] == x);
+        }
+
+        let mut mem: [u8; MEM_SZ] = [0; MEM_SZ];
+        mem[0] = STX_86;
+        mem[1] = 0xC0;
+
+        _t(&mem, 0x00C0, 0x55);
+        _t(&mem, 0x00C0, 0x00);
+        _t(&mem, 0x00C0, 0x80);
+        _t(&mem, 0x00C0, 0xAA);
+    }
+
+    #[test]
+    fn test_stx_96() { // STX $nn,Y
+        fn _t(mem: &[u8], addr: usize, x: u8, y: u8) {
+            let mut cpu = Cpu::new();
+            cpu.patch_memory(0, mem);
+            cpu.x = x;
+            cpu.y = y;
+            cpu.step();
+            assert!(cpu.memory[addr] == x);
+        }
+
+        let mut mem: [u8; MEM_SZ] = [0; MEM_SZ];
+        mem[0] = STX_96;
+        mem[1] = 0xC0;
+
+        _t(&mem, 0x00E2, 0x55, 0x22);
+        _t(&mem, 0x00D0, 0x00, 0x10);
+        _t(&mem, 0x00D5, 0x80, 0x15);
+        _t(&mem, 0x0020, 0xAA, 0x60); // no crossing of zero-page boundaries
+    }
+
+    //
+    // LOAD - STY
+    //
+
+    #[test]
+    fn test_sty_8c() { // STY $nnnn
+        fn _t(mem: &[u8], addr: usize, y: u8) {
+            let mut cpu = Cpu::new();
+            cpu.patch_memory(0, mem);
+            cpu.y = y;
+            cpu.step();
+            assert!(cpu.memory[addr] == y);
+        }
+
+        let mut mem: [u8; MEM_SZ] = [0; MEM_SZ];
+        mem[0] = STY_8C;
+        mem[1] = 0x60;
+        mem[2] = 0x80;
+
+        _t(&mem, 0x8060, 0x55);
+        _t(&mem, 0x8060, 0x00);
+        _t(&mem, 0x8060, 0x80);
+        _t(&mem, 0x8060, 0xAA);
+    }
+
+    #[test]
+    fn test_sty_84() { // STY $nn
+        fn _t(mem: &[u8], addr: usize, y: u8) {
+            let mut cpu = Cpu::new();
+            cpu.patch_memory(0, mem);
+            cpu.y = y;
+            cpu.step();
+            assert!(cpu.memory[addr] == y);
+        }
+
+        let mut mem: [u8; MEM_SZ] = [0; MEM_SZ];
+        mem[0] = STY_84;
+        mem[1] = 0xC0;
+
+        _t(&mem, 0x00C0, 0x55);
+        _t(&mem, 0x00C0, 0x00);
+        _t(&mem, 0x00C0, 0x80);
+        _t(&mem, 0x00C0, 0xAA);
+    }
+
+    #[test]
+    fn test_sty_94() { // STY $nn,X
+        fn _t(mem: &[u8], addr: usize, y: u8, x: u8) {
+            let mut cpu = Cpu::new();
+            cpu.patch_memory(0, mem);
+            cpu.x = x;
+            cpu.y = y;
+            cpu.step();
+            assert!(cpu.memory[addr] == y);
+        }
+
+        let mut mem: [u8; MEM_SZ] = [0; MEM_SZ];
+        mem[0] = STY_94;
+        mem[1] = 0xC0;
+
+        _t(&mem, 0x00E2, 0x55, 0x22);
+        _t(&mem, 0x00D0, 0x00, 0x10);
+        _t(&mem, 0x00D5, 0x80, 0x15);
+        _t(&mem, 0x0020, 0xAA, 0x60); // no crossing of zero-page boundaries
     }
 
     //
