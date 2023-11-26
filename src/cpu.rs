@@ -1,3 +1,6 @@
+// https://www.pagetable.com/c64ref/6502/?tab=2
+// http://www.emulator101.com/6502-addressing-modes.html
+
 // TODO: Make Cpu reference to memory, not owning it
 //       (it may speed up tests a little bit)
 
