@@ -469,7 +469,46 @@ impl Cpu {
             //
             // LOAD - STA
             //
-            // TODO
+            opcodes::STA_8D => { // STA $nnnn
+                let addr = self.get_addr();
+                self.memory[addr] = self.a;
+                self.pc += 2;
+            }
+            opcodes::STA_9D => { // STA $nnnn,X
+                let addr = self.get_addr() + self.x as usize;
+                self.memory[addr] = self.a;
+                self.pc += 2;
+            }
+            opcodes::STA_99 => { // STA $nnnn,Y
+                let addr = self.get_addr() + self.y as usize;
+                self.memory[addr] = self.a;
+                self.pc += 2;
+            }
+            opcodes::STA_85 => { // STA $nn
+                let addr = self.get_addr_zero_page();
+                self.memory[addr] = self.a;
+                self.pc += 1;
+            }
+            opcodes::STA_95 => { // STA $nn,X
+                let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
+                self.memory[addr] = self.a;
+                self.pc += 1;
+            }
+            opcodes::STA_81 => { // STA ($nn,X)
+                let addr = (self.get_addr_zero_page()  + self.x as usize) & 0xff;
+                let hi = (self.memory[addr+1] as usize) << 8;
+                let addr = hi | self.memory[addr] as usize;
+                self.memory[addr] = self.a;
+                self.pc += 1;
+            }
+            opcodes::STA_91 => { // STA ($nn),Y
+                let mut addr = self.get_addr_zero_page();
+                let hi = (self.memory[(addr + 1) % 0xff] as usize) << 8;
+                let lo = self.memory[addr] as usize;
+                let addr = (hi | lo) + self.y as usize;
+                self.memory[addr] = self.a;
+                self.pc += 1;
+            }
 
             //
             // LOAD - STX
