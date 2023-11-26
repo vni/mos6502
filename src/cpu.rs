@@ -8,6 +8,8 @@
 //       All have ready memory, no memory modification during tests,
 //          no pre-calculated addresses passed to test
 
+// TODO: Add separate functions for different addressing modes
+
 const MEM_SZ: usize = 65_536;
 
 #[derive(Debug, PartialEq)]
@@ -479,7 +481,7 @@ impl Cpu {
             }
             opcodes::STA_81 => { // STA ($nn,X)
                 let addr = (self.get_addr_zero_page()  + self.x as usize) & 0xff;
-                let hi = (self.memory[addr+1] as usize) << 8;
+                let hi = (self.memory[(addr+1) & 0xff] as usize) << 8;
                 let addr = hi | self.memory[addr] as usize;
                 self.memory[addr] = self.a;
                 self.pc += 1;
@@ -1134,9 +1136,6 @@ mod tests {
     use super::{opcodes::*, Flags::*, *};
 
     //
-    // LOAD
-    //
-    //
     // LOAD - LDA
     //
     #[test]
@@ -1626,7 +1625,157 @@ mod tests {
     // LOAD - STA
     //
 
-    // FIXME: Finish
+    #[test]
+    fn test_sta_8d() { // STA $nnnn
+        fn _t(mem: &[u8], addr: usize, a: u8) {
+            let mut cpu = Cpu::new();
+            cpu.patch_memory(0, mem);
+            cpu.a = a;
+            cpu.step();
+            assert!(cpu.memory[addr] == a);
+        }
+
+        let mut mem: [u8; MEM_SZ] = [0; MEM_SZ];
+        mem[0] = STA_8D;
+        mem[1] = 0x60;
+        mem[2] = 0x80;
+
+        _t(&mem, 0x8060, 0x55);
+        _t(&mem, 0x8060, 0x00);
+        _t(&mem, 0x8060, 0x80);
+        _t(&mem, 0x8060, 0xAA);
+    }
+
+    #[test]
+    fn test_sta_9d() { // STA $nnnn,X
+        fn _t(mem: &[u8], addr: usize, a: u8, x: u8) {
+            let mut cpu = Cpu::new();
+            cpu.patch_memory(0, mem);
+            cpu.a = a;
+            cpu.x = x;
+            cpu.step();
+            assert!(cpu.memory[addr] == a);
+        }
+
+        let mut mem: [u8; MEM_SZ] = [0; MEM_SZ];
+        mem[0] = STA_9D;
+        mem[1] = 0x60;
+        mem[2] = 0x80;
+
+        _t(&mem, 0x8082, 0x55, 0x22);
+        _t(&mem, 0x8082, 0x00, 0x22);
+        _t(&mem, 0x8082, 0x80, 0x22);
+        _t(&mem, 0x8082, 0xAA, 0x22);
+    }
+
+    #[test]
+    fn test_sta_99() { // STA $nnnn,Y
+        fn _t(mem: &[u8], addr: usize, a: u8, y: u8) {
+            let mut cpu = Cpu::new();
+            cpu.patch_memory(0, mem);
+            cpu.a = a;
+            cpu.y = y;
+            cpu.step();
+            assert!(cpu.memory[addr] == a);
+        }
+
+        let mut mem: [u8; MEM_SZ] = [0; MEM_SZ];
+        mem[0] = STA_99;
+        mem[1] = 0x60;
+        mem[2] = 0x80;
+
+        _t(&mem, 0x8082, 0x55, 0x22);
+        _t(&mem, 0x8082, 0x00, 0x22);
+        _t(&mem, 0x8082, 0x80, 0x22);
+        _t(&mem, 0x8082, 0xAA, 0x22);
+    }
+
+    #[test]
+    fn test_sta_85() { // STA $nn
+        fn _t(mem: &[u8], addr: usize, a: u8) {
+            let mut cpu = Cpu::new();
+            cpu.patch_memory(0, mem);
+            cpu.a = a;
+            cpu.step();
+            assert!(cpu.memory[addr] == a);
+        }
+
+        let mut mem: [u8; MEM_SZ] = [0; MEM_SZ];
+        mem[0] = STA_85;
+        mem[1] = 0x80;
+
+        _t(&mem, 0x80, 0x55);
+        _t(&mem, 0x80, 0x00);
+        _t(&mem, 0x80, 0x80);
+        _t(&mem, 0x80, 0xAA);
+    }
+
+    #[test]
+    fn test_sta_95() { // STA $nn,X
+        fn _t(mem: &[u8], addr: usize, a: u8, x: u8) {
+            let mut cpu = Cpu::new();
+            cpu.patch_memory(0, mem);
+            cpu.a = a;
+            cpu.x = x;
+            cpu.step();
+            assert!(cpu.memory[addr] == a);
+        }
+
+        let mut mem: [u8; MEM_SZ] = [0; MEM_SZ];
+        mem[0] = STA_95;
+        mem[1] = 0x80;
+
+        _t(&mem, 0xA2, 0x55, 0x22);
+        _t(&mem, 0xA2, 0x00, 0x22);
+        _t(&mem, 0xA2, 0x80, 0x22);
+        _t(&mem, 0xA2, 0xAA, 0x22);
+    }
+
+    #[test]
+    fn test_sta_81() { // STA ($nn,X)
+        fn _t(mem: &[u8], addr: usize, a: u8, x: u8) {
+            let mut cpu = Cpu::new();
+            cpu.patch_memory(0, mem);
+            cpu.a = a;
+            cpu.x = x;
+            cpu.step();
+            assert!(cpu.memory[addr] == a);
+        }
+
+        let mut mem: [u8; MEM_SZ] = [0; MEM_SZ];
+        mem[0] = STA_81;
+        mem[1] = 0x80;
+        mem[0x98] = 0x22;
+        mem[0x99] = 0x40;
+
+        _t(&mem, 0x4022, 0x55, 0x18);
+        _t(&mem, 0x4022, 0x00, 0x18);
+        _t(&mem, 0x4022, 0x80, 0x18);
+        _t(&mem, 0x4022, 0xAA, 0x18);
+    }
+
+    #[test]
+    fn test_sta_91() { // STA ($nn),Y
+        fn _t(mem: &[u8], addr: usize, a: u8, y: u8) {
+            let mut cpu = Cpu::new();
+            cpu.patch_memory(0, mem);
+            cpu.a = a;
+            cpu.y = y;
+            cpu.step();
+            assert!(cpu.memory[addr] == a);
+        }
+
+        let mut mem: [u8; MEM_SZ] = [0; MEM_SZ];
+        mem[0] = STA_91;
+        mem[1] = 0x80;
+        mem[0x80] = 0x22; // $4022 + $0018 = 403A
+        mem[0x81] = 0x40;
+
+        _t(&mem, 0x403A, 0x55, 0x18);
+        _t(&mem, 0x403A, 0x00, 0x18);
+        _t(&mem, 0x403A, 0x80, 0x18);
+        _t(&mem, 0x403A, 0xAA, 0x18);
+    }
 
     //
     // LOAD - STX
