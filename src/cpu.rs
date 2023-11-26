@@ -210,16 +210,6 @@ impl Cpu {
         }
     }
 
-    /*
-    fn update_negative(&mut self, val: u8) {
-        if val & Flags::N_Negative != 0 {
-            self.p |= Flags::N_Negative;
-        } else {
-            self.p &= !Flags::N_Negative;
-        }
-    }
-    */
-
     fn update_zero(&mut self, flag: bool) {
         if flag {
             self.p |= Flags::Z_Zero;
@@ -227,16 +217,6 @@ impl Cpu {
             self.p &= !Flags::Z_Zero;
         }
     }
-
-    /*
-    fn update_zero(&mut self, val: u8) {
-        if val == 0 {
-            self.p |= Flags::Z_Zero;
-        } else {
-            self.p &= !Flags::Z_Zero;
-        }
-    }
-    */
 
     fn update_carry(&mut self, flag: bool) {
         if flag {
@@ -319,9 +299,8 @@ impl Cpu {
         self.pc += 1;
         match opcode {
             //
-            // LOAD
-            //
             // LOAD - LDA
+            //
             opcodes::LDA_A9 => {
                 self.a = self.memory[self.pc as usize];
                 self.pc += 1;
@@ -394,7 +373,9 @@ impl Cpu {
                 self.update_zero(self.a == 0);
             }
 
+            //
             // LOAD - LDX
+            //
             opcodes::LDX_A2 => { // LDX #$nn
                 self.x = self.memory[self.pc as usize];
                 self.update_negative(self.x & 0x80 != 0);
@@ -430,7 +411,9 @@ impl Cpu {
                 self.pc += 1;
             }
 
+            //
             // LOAD - LDY
+            //
             opcodes::LDY_A0 => { // LDY #$nn
                 self.y = self.memory[self.pc as usize];
                 self.update_negative(self.y & 0x80 != 0);
@@ -556,7 +539,7 @@ impl Cpu {
             }
 
             //
-            // INCREMENT
+            // INCREMENT - INX
             //
             opcodes::INX_E8 => {
                 // INX, 2 cycles, Flags: n,z
@@ -573,6 +556,10 @@ impl Cpu {
 
                 self.x = result as u8;
             }
+
+            //
+            // INCREMENT - INY
+            //
             opcodes::INY_C8 => {
                 // INY, 2cycles, Flags: n,z
                 let result: u16 = self.y as u16 + 1;
@@ -588,6 +575,10 @@ impl Cpu {
 
                 self.y = result as u8;
             }
+
+            //
+            // INCREMENT - DEX
+            //
             opcodes::DEX_CA => {
                 // DEX, 2 cycles, Flags: n,z
                 let result: u16 = 0x0100 + self.x as u16 - 1;
@@ -603,6 +594,10 @@ impl Cpu {
 
                 self.x = result as u8;
             }
+
+            //
+            // INCREMENT - DEY
+            //
             opcodes::DEY_88 => {
                 // DEY, 2 cycles, Flags: n,z
                 let result: u16 = 0x0100 + self.y as u16 - 1;
@@ -619,81 +614,144 @@ impl Cpu {
                 self.y = result as u8;
             }
 
-            // flags
+            //
+            // FLAGS - CLC
+            //
             opcodes::CLC_18 => {
                 self.p &= !Flags::C_Carry;
             }
+
+            //
+            // FLAGS - CLD
+            //
             opcodes::CLD_D8 => {
                 self.p &= !Flags::D_Decimal;
             }
+
+            //
+            // FLAGS - CLI
+            //
             opcodes::CLI_58 => {
                 self.p &= !Flags::I_InterruptDisable;
             }
+
+            //
+            // FLAGS - CLV
+            //
             opcodes::CLV_B8 => {
                 self.p &= !Flags::V_Overflow;
             }
 
+            //
+            // FLAGS - SEC
+            //
             opcodes::SEC_38 => {
                 self.p |= Flags::C_Carry;
             }
+
+            //
+            // FLAGS - SED
+            //
             opcodes::SED_F8 => {
                 self.p |= Flags::D_Decimal;
             }
+
+            //
+            // FLAGS - SEI
+            //
             opcodes::SEI_78 => {
                 self.p |= Flags::I_InterruptDisable;
             }
 
-            // TRANSFER
+            //
+            // TRANSFER - TAX
+            //
             opcodes::TAX_AA => {
                 self.x = self.a;
                 self.update_negative(self.x & 0x80 != 0);
                 self.update_zero(self.x == 0);
             }
+
+            //
+            // TRANSFER - TAY
+            //
             opcodes::TAY_A8 => {
                 self.y = self.a;
                 self.update_negative(self.y & 0x80 != 0);
                 self.update_zero(self.y == 0);
             }
+
+            //
+            // TRANSFER - TSX
+            //
             opcodes::TSX_BA => {
                 self.x = self.s;
                 self.update_negative(self.x & 0x80 != 0);
                 self.update_zero(self.x == 0);
             }
+
+            //
+            // TRANSFER - TXA
+            //
             opcodes::TXA_8A => {
                 self.a = self.x;
                 self.update_negative(self.a & 0x80 != 0);
                 self.update_zero(self.a == 0);
             }
+
+            //
+            // TRANSFER - TXS
+            //
             opcodes::TXS_9A => {
                 self.s = self.x;
                 self.update_negative(self.s & 0x80 != 0);
                 self.update_zero(self.s == 0);
             }
+
+            //
+            // TRANSFER - TYA
+            //
             opcodes::TYA_98 => {
                 self.a = self.y;
                 self.update_negative(self.a & 0x80 != 0);
                 self.update_zero(self.a == 0);
             }
 
-            // STACK
+            //
+            // STACK - PHA
+            //
             opcodes::PHA_48 => {
                 self.memory[0x100 + self.s as usize] = self.a;
                 self.s -= 1;
             }
+
+            //
+            // STACK - PHP
+            //
             opcodes::PHP_08 => {
                 self.memory[0x100 + self.s as usize] = self.p;
                 self.s -= 1;
             }
+
+            //
+            // STACK - PLA
+            //
             opcodes::PLA_68 => {
                 self.s += 1;
                 self.a = self.memory[0x100 + self.s as usize];
             }
+
+            //
+            // STACK - PLP
+            //
             opcodes::PLP_28 => {
                 self.s += 1;
                 self.p = self.memory[0x100 + self.s as usize];
             }
 
-            // BRANCH
+            //
+            // BRANCH - BCC - Branch Carry Clear
+            //
             opcodes::BCC_90 => {
                 if !self.is_carry() {
                     self.set_pc_to_current_addr_in_memory();
@@ -701,6 +759,10 @@ impl Cpu {
                     self.pc += 2;
                 }
             }
+
+            //
+            // BRANCH - BCS - Branch Carry Set
+            //
             opcodes::BCS_B0 => {
                 if self.is_carry() {
                     self.set_pc_to_current_addr_in_memory();
@@ -708,6 +770,10 @@ impl Cpu {
                     self.pc += 2;
                 }
             }
+
+            //
+            // BRANCH - BEQ - Branch Equal
+            //
             opcodes::BEQ_F0 => {
                 if self.is_zero() {
                     self.set_pc_to_current_addr_in_memory();
@@ -715,6 +781,10 @@ impl Cpu {
                     self.pc += 2;
                 }
             }
+
+            //
+            // BRANCH - BMI - Branch MInus
+            //
             opcodes::BMI_30 => {
                 if self.is_negative() {
                     self.set_pc_to_current_addr_in_memory();
@@ -722,6 +792,10 @@ impl Cpu {
                     self.pc += 2;
                 }
             }
+
+            //
+            // BRANCH - BNE - Branch Not Equal
+            //
             opcodes::BNE_D0 => {
                 if !self.is_zero() {
                     self.set_pc_to_current_addr_in_memory();
@@ -729,6 +803,10 @@ impl Cpu {
                     self.pc += 2;
                 }
             }
+
+            //
+            // BRANCH - BPL - Branch PLus
+            //
             opcodes::BPL_10 => {
                 if !self.is_negative() {
                     self.set_pc_to_current_addr_in_memory();
@@ -736,6 +814,10 @@ impl Cpu {
                     self.pc += 2;
                 }
             }
+
+            //
+            // BRANCH - BVC - Branch oVerflow Clear
+            //
             opcodes::BVC_50 => {
                 if !self.is_overflow() {
                     self.set_pc_to_current_addr_in_memory();
@@ -743,6 +825,10 @@ impl Cpu {
                     self.pc += 2;
                 }
             }
+
+            //
+            // BRANCH - BVS - Branch oVerflow Set
+            //
             opcodes::BVS_70 => {
                 if self.is_overflow() {
                     self.set_pc_to_current_addr_in_memory();
@@ -751,7 +837,9 @@ impl Cpu {
                 }
             }
 
-            // SHIFT ASL
+            //
+            // SHIFT - ASL - Arithmetic Shift Left
+            //
             opcodes::ASL_0A => {
                 // ASL A
                 self.a = self._asl_inst(self.a);
@@ -781,7 +869,9 @@ impl Cpu {
                 self.pc += 1;
             }
 
-            // SHIFT LSR
+            //
+            // SHIFT - LSR - Logic Shift Right
+            //
             opcodes::LSR_4A => {
                 // LSR A
                 self.a = self._lsr_inst(self.a);
@@ -812,7 +902,9 @@ impl Cpu {
                 self.pc += 1;
             }
 
-            // SHIFT ROL - Rotate Left
+            //
+            // SHIFT - ROL - Rotate Left
+            //
             opcodes::ROL_2A => {
                 // ROL A
                 self.a = self._rol_inst(self.a);
@@ -842,7 +934,9 @@ impl Cpu {
                 self.pc += 1;
             }
 
-            // SHIFT ROR - Rotate Right
+            //
+            // SHIFT - ROR - Rotate Right
+            //
             opcodes::ROR_6A => {
                 // ROR A
                 self.a = self._ror_inst(self.a);
