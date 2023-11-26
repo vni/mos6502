@@ -371,23 +371,11 @@ impl Cpu {
             }
             opcodes::LDA_A1 => {
                 let mut addr = self.get_addr_zero_page() as usize;
-                // println!("nn: {:02x}", addr);
                 addr = (addr + self.x as usize) & 0xff;
-                // println!("x: {:02x}", self.x);
-                // println!("resulting addr1: {:02x}", addr);
-
-                // println!("before cpu.a: {:02x}", self.a);
 
                 let mut addr2 = self.memory[addr] as usize;
                 addr2 |= (self.memory[addr + 1] as usize) << 8;
                 self.a = self.memory[addr2];
-
-                // let mut addr3 = (self.memory[addr2+1] as usize) << 8;
-                // addr3 += self.memory[addr2] as usize;
-
-                // // println!("addr2: {:04x}", addr2);
-                // self.a = self.memory[addr3];
-                // // println!("after cpu.a: {:02x}", self.a);
 
                 self.pc += 1;
                 self.update_negative(self.a & 0x80 != 0);
