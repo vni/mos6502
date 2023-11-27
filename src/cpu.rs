@@ -256,6 +256,14 @@ impl Cpu {
         }
     }
 
+    fn update_overflow(&mut self, flag: bool) {
+        if flag {
+            self.p |= Flags::V_Overflow;
+        } else {
+            self.p &= !Flags::V_Overflow;
+        }
+    }
+
     fn update_carry(&mut self, flag: bool) {
         if flag {
             self.p |= Flags::C_Carry;
@@ -327,6 +335,13 @@ impl Cpu {
         self.a &= val;
         self.update_zero(self.a == 0);
         self.update_negative(self.a & 0x80 != 0);
+    }
+
+    fn _bit_inst(&mut self, val: u8) {
+        let r = self.a & val;
+        self.update_zero(r == 0);
+        self.update_overflow(r & 0x40 != 0);
+        self.update_negative(r & 0x80 != 0);
     }
 
     fn _eor_inst(&mut self, val: u8) {
@@ -1159,10 +1174,14 @@ impl Cpu {
             // BIT
             //
             opcodes::BIT_2C => { // BIT $nnnn
-                unimplemented!();
+                let addr = self.get_addr();
+                self._bit_inst(self.memory[addr]);
+                self.pc += 2;
             }
             opcodes::BIT_24 => { // BIT $nn
-                unimplemented!();
+                let addr = self.get_addr_zero_page();
+                self._bit_inst(self.memory[addr]);
+                self.pc += 1;
             }
 
             //
@@ -4005,12 +4024,67 @@ mod tests {
     //
     #[test]
     fn test_bit_2c() { // BIT $nnnn
-        unimplemented!();
+        let mut mem = [0u8; MEM_SZ];
+        mem[0] = BIT_2C; // BIT $1000
+        mem[1] = 0x00;
+        mem[2] = 0x10;
+
+        fn _t(mem: &[u8], a: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            cpu.patch_memory(0, mem);
+            cpu.step();
+
+            assert!(cpu.a == a);
+            assert!(cpu.p == expected_flags);
+        }
+
+        //  mem     a flags
+        mem[0x1000] = 0;
+        _t(&mem,    0, Z_Zero);
+        mem[0x1000] = 0x55;
+        _t(&mem, 0xff, V_Overflow);
+        mem[0x1000] = 0xaa;
+        _t(&mem, 0xff, N_Negative);
+        mem[0x1000] = 0;
+        _t(&mem, 0xaa, Z_Zero);
+        mem[0x1000] = 0x80;
+        _t(&mem, 0xaa, N_Negative);
+        mem[0x1000] = 0x7c;
+        _t(&mem, 0x3a, 0);
     }
 
     #[test]
     fn test_bit_24() { // BIT $nn
-        unimplemented!();
+        let mut mem = [0u8; MEM_SZ];
+        mem[0] = BIT_2C; // BIT $90
+        mem[1] = 0x90;
+
+        fn _t(mem: &[u8], a: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            cpu.patch_memory(0, mem);
+            cpu.step();
+
+            assert!(cpu.a == a);
+            assert!(cpu.p == expected_flags);
+        }
+
+        //  mem     a flags
+        mem[0x0090] = 0;
+        _t(&mem,    0, Z_Zero);
+        mem[0x0090] = 0x55;
+        _t(&mem, 0xaa, Z_Zero);
+        mem[0x0090] = 0x55;
+        _t(&mem, 0xff, V_Overflow);
+        mem[0x0090] = 0xaa;
+        _t(&mem, 0xff, N_Negative);
+        mem[0x0090] = 0;
+        _t(&mem, 0xaa, Z_Zero);
+        mem[0x0090] = 0x80;
+        _t(&mem, 0xaa, N_Negative);
+        mem[0x0090] = 0x7c;
+        _t(&mem, 0x3a, 0);
     }
 
     //
