@@ -117,10 +117,35 @@ mod opcodes {
     pub const ROR_76: u8 = 0x76;
 
     // logic
-    pub const AND: u8 = 0x00;
-    pub const BIT: u8 = 0x00;
-    pub const EOR: u8 = 0x00;
-    pub const ORA: u8 = 0x00;
+    pub const AND_29: u8 = 0x29;
+    pub const AND_2D: u8 = 0x2D;
+    pub const AND_3D: u8 = 0x3D;
+    pub const AND_39: u8 = 0x39;
+    pub const AND_25: u8 = 0x25;
+    pub const AND_35: u8 = 0x35;
+    pub const AND_21: u8 = 0x21;
+    pub const AND_31: u8 = 0x31;
+
+    pub const BIT_2C: u8 = 0x2C;
+    pub const BIT_24: u8 = 0x24;
+
+    pub const EOR_49: u8 = 0x49;
+    pub const EOR_4D: u8 = 0x4D;
+    pub const EOR_5D: u8 = 0x5D;
+    pub const EOR_59: u8 = 0x59;
+    pub const EOR_45: u8 = 0x45;
+    pub const EOR_55: u8 = 0x55;
+    pub const EOR_41: u8 = 0x41;
+    pub const EOR_51: u8 = 0x51;
+
+    pub const ORA_09: u8 = 0x09;
+    pub const ORA_0D: u8 = 0x0D;
+    pub const ORA_1D: u8 = 0x1D;
+    pub const ORA_19: u8 = 0x19;
+    pub const ORA_05: u8 = 0x05;
+    pub const ORA_15: u8 = 0x15;
+    pub const ORA_01: u8 = 0x01;
+    pub const ORA_11: u8 = 0x11;
 
     // arith
     pub const ADC: u8 = 0x00;
@@ -295,6 +320,12 @@ impl Cpu {
         self.update_negative(val & 0x80 != 0);
         self.update_zero(val == 0);
         val
+    }
+
+    fn _and_inst(&mut self, val: u8) {
+        self.a &= val;
+        self.update_zero(self.a == 0);
+        self.update_negative(self.a & 0x80 != 0);
     }
 
     fn reset(&mut self) {
@@ -1059,6 +1090,55 @@ impl Cpu {
                 // ROR $nn,X
                 let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
                 self.memory[addr] = self._ror_inst(self.memory[addr]);
+                self.pc += 1;
+            }
+
+            //
+            // LOGIC - AND
+            //
+            opcodes::AND_29 => { // AND #$nn
+                let nn = self.get_addr_zero_page() as u8;
+                self._and_inst(nn);
+                self.pc += 1;
+            }
+            opcodes::AND_2D => { // AND $nnnn
+                let addr = self.get_addr();
+                self._and_inst(self.memory[addr]);
+                self.pc += 2;
+            }
+            opcodes::AND_3D => { // AND $nnnn,X
+                let addr = self.get_addr() + self.x as usize;
+                self._and_inst(self.memory[addr]);
+                self.pc += 2;
+            }
+            opcodes::AND_39 => { // AND $nnnn,Y
+                let addr = self.get_addr() + self.y as usize;
+                self._and_inst(self.memory[addr]);
+                self.pc += 2;
+            }
+            opcodes::AND_25 => { // AND $nn
+                let addr = self.get_addr_zero_page();
+                self._and_inst(self.memory[addr]);
+                self.pc += 1;
+            }
+            opcodes::AND_35 => { // AND $nn,X
+                let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
+                self._and_inst(self.memory[addr]);
+                self.pc += 1;
+            }
+            opcodes::AND_21 => { // AND ($nn,X)
+                let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
+                let mut addr2 = (self.memory[(addr + 1) & 0xff] as usize) << 8;
+                addr2 |= self.memory[addr] as usize;
+                self._and_inst(self.memory[addr2]);
+                self.pc += 1;
+            }
+            opcodes::AND_31 => { // AND ($nn),Y
+                let addr = self.get_addr_zero_page(); // + self.x as usize) & 0xff;
+                let mut addr2 = (self.memory[(addr + 1) & 0xff] as usize) << 8;
+                addr2 |= self.memory[addr] as usize;
+                addr2 += self.y as usize;
+                self._and_inst(self.memory[addr2]);
                 self.pc += 1;
             }
 
@@ -3543,5 +3623,259 @@ mod tests {
         _t(memory, 0x0040, 0x20, true, 3, 0x81, N_Negative | C_Carry);
         _t(memory, 0x0040, 0x20, true, 0x80, 0xC0, N_Negative);
         _t(memory, 0x0040, 0x20, true, 0x81, 0xC0, N_Negative | C_Carry);
+    }
+
+    //
+    // AND
+    //
+    #[test]
+    fn test_and_29() { // AND #$nn
+        fn _t(a: u8, val: u8, expect: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            let memory: &[u8] = &[AND_29, val];
+            cpu.patch_memory(0, memory);
+            cpu.step();
+
+            assert!(cpu.a == expect);
+            assert!(cpu.p == expected_flags);
+        }
+
+        //    a   val expect flags
+        _t(   0,    0,    0, Z_Zero);
+        _t(0xff, 0x55, 0x55, 0);
+        _t(0xff, 0xaa, 0xaa, N_Negative);
+        _t(0xaa, 0x55, 0x00, Z_Zero);
+        _t(0xaa, 0xC0, 0x80, N_Negative);
+        _t(0x3a, 0x7c, 0x38, 0);
+    }
+
+    #[test]
+    fn test_and_2D() { // AND $nnnn
+        let mut mem = [0u8; MEM_SZ];
+        mem[0] = AND_2D; // AND $3320
+        mem[1] = 0x20;
+        mem[2] = 0x33;
+
+        fn _t(mem: &[u8], a: u8, expect: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            cpu.patch_memory(0, mem);
+            cpu.step();
+
+            assert!(cpu.a == expect);
+            assert!(cpu.p == expected_flags);
+        }
+
+        //  mem     a expect flags
+        mem[0x3320] = 0;
+        _t(&mem,    0,    0, Z_Zero);
+        mem[0x3320] = 0x55;
+        _t(&mem, 0xff, 0x55, 0);
+        mem[0x3320] = 0xaa;
+        _t(&mem, 0xff, 0xaa, N_Negative);
+        mem[0x3320] = 0;
+        _t(&mem, 0xaa, 0x00, Z_Zero);
+        mem[0x3320] = 0x80;
+        _t(&mem, 0xaa, 0x80, N_Negative);
+        mem[0x3320] = 0x7c;
+        _t(&mem, 0x3a, 0x38, 0);
+    }
+
+    #[test]
+    fn test_and_3D() { // AND $nnnn,X
+        let mut mem = [0u8; MEM_SZ];
+        mem[0] = AND_3D; // AND $3320,X
+        mem[1] = 0x20;
+        mem[2] = 0x33;
+
+        fn _t(mem: &[u8], a: u8, x: u8, expect: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            cpu.x = x;
+            cpu.patch_memory(0, mem);
+            cpu.step();
+
+            assert!(cpu.a == expect);
+            assert!(cpu.p == expected_flags);
+        }
+
+        //  mem     a    x expect flags
+        mem[0x3340] = 0;
+        _t(&mem,    0, 0x20,    0, Z_Zero);
+        mem[0x3340] = 0x55;
+        _t(&mem, 0xff, 0x20, 0x55, 0);
+        mem[0x3340] = 0xaa;
+        _t(&mem, 0xff, 0x20, 0xaa, N_Negative);
+        mem[0x3340] = 0;
+        _t(&mem, 0xaa, 0x20, 0x00, Z_Zero);
+        mem[0x3340] = 0x80;
+        _t(&mem, 0xaa, 0x20, 0x80, N_Negative);
+        mem[0x3340] = 0x7c;
+        _t(&mem, 0x3a, 0x20, 0x38, 0);
+    }
+
+    #[test]
+    fn test_and_39() { // AND $nnnn,Y
+        let mut mem = [0u8; MEM_SZ];
+        mem[0] = AND_39; // AND $3320,Y
+        mem[1] = 0x20;
+        mem[2] = 0x33;
+
+        fn _t(mem: &[u8], a: u8, y: u8, expect: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            cpu.y = y;
+            cpu.patch_memory(0, mem);
+            cpu.step();
+
+            assert!(cpu.a == expect);
+            assert!(cpu.p == expected_flags);
+        }
+
+        //  mem     a    x expect flags
+        mem[0x3340] = 0;
+        _t(&mem,    0, 0x20,    0, Z_Zero);
+        mem[0x3340] = 0x55;
+        _t(&mem, 0xff, 0x20, 0x55, 0);
+        mem[0x3340] = 0xaa;
+        _t(&mem, 0xff, 0x20, 0xaa, N_Negative);
+        mem[0x3340] = 0;
+        _t(&mem, 0xaa, 0x20, 0x00, Z_Zero);
+        mem[0x3340] = 0x80;
+        _t(&mem, 0xaa, 0x20, 0x80, N_Negative);
+        mem[0x3340] = 0x7c;
+        _t(&mem, 0x3a, 0x20, 0x38, 0);
+    }
+
+    #[test]
+    fn test_and_25() { // AND $nn
+        let mut mem = [0u8; MEM_SZ];
+        mem[0] = AND_25; // AND $33
+        mem[1] = 0x33;
+
+        fn _t(mem: &[u8], a: u8, expect: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            cpu.patch_memory(0, mem);
+            cpu.step();
+
+            assert!(cpu.a == expect);
+            assert!(cpu.p == expected_flags);
+        }
+
+        //  mem     a expect flags
+        mem[0x0033] = 0;
+        _t(&mem,    0,    0, Z_Zero);
+        mem[0x0033] = 0x55;
+        _t(&mem, 0xff, 0x55, 0);
+        mem[0x0033] = 0xaa;
+        _t(&mem, 0xff, 0xaa, N_Negative);
+        mem[0x0033] = 0;
+        _t(&mem, 0xaa, 0x00, Z_Zero);
+        mem[0x0033] = 0x80;
+        _t(&mem, 0xaa, 0x80, N_Negative);
+        mem[0x0033] = 0x7c;
+        _t(&mem, 0x3a, 0x38, 0);
+    }
+
+    #[test]
+    fn test_and_35() { // AND $nn,X
+        let mut mem = [0u8; MEM_SZ];
+        mem[0] = AND_35; // AND $44,X
+        mem[1] = 0x44;
+
+        fn _t(mem: &[u8], a: u8, x: u8, expect: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            cpu.x = x;
+            cpu.patch_memory(0, mem);
+            cpu.step();
+
+            assert!(cpu.a == expect);
+            assert!(cpu.p == expected_flags);
+        }
+
+        //  mem     a    x expect flags
+        mem[0x0055] = 0;
+        _t(&mem,    0, 0x11,    0, Z_Zero);
+        mem[0x0055] = 0x55;
+        _t(&mem, 0xff, 0x11, 0x55, 0);
+        mem[0x0055] = 0xaa;
+        _t(&mem, 0xff, 0x11, 0xaa, N_Negative);
+        mem[0x0055] = 0;
+        _t(&mem, 0xaa, 0x11, 0x00, Z_Zero);
+        mem[0x0055] = 0x80;
+        _t(&mem, 0xaa, 0x11, 0x80, N_Negative);
+        mem[0x0055] = 0x7c;
+        _t(&mem, 0x3a, 0x11, 0x38, 0);
+    }
+
+    #[test]
+    fn test_and_21() { // AND ($nn,X)
+        let mut mem = [0u8; MEM_SZ];
+        mem[0] = AND_21; // AND ($44,X)
+        mem[1] = 0x44;
+        mem[0x0055] = 0xf0; // 0x80f0
+        mem[0x0056] = 0x80;
+
+        fn _t(mem: &[u8], a: u8, x: u8, expect: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            cpu.x = x;
+            cpu.patch_memory(0, mem);
+            cpu.step();
+
+            assert!(cpu.a == expect);
+            assert!(cpu.p == expected_flags);
+        }
+
+        //  mem     a    x expect flags
+        mem[0x80f0] = 0;
+        _t(&mem,    0, 0x11,    0, Z_Zero);
+        mem[0x80f0] = 0x55;
+        _t(&mem, 0xff, 0x11, 0x55, 0);
+        mem[0x80f0] = 0xaa;
+        _t(&mem, 0xff, 0x11, 0xaa, N_Negative);
+        mem[0x80f0] = 0;
+        _t(&mem, 0xaa, 0x11, 0x00, Z_Zero);
+        mem[0x80f0] = 0x80;
+        _t(&mem, 0xaa, 0x11, 0x80, N_Negative);
+        mem[0x80f0] = 0x7c;
+        _t(&mem, 0x3a, 0x11, 0x38, 0);
+    }
+
+    #[test]
+    fn test_and_31() { // AND ($nn),Y
+        let mut mem = [0u8; MEM_SZ];
+        mem[0] = AND_31; // AND ($44,Y)
+        mem[1] = 0x44;
+        mem[0x0044] = 0xf0; // 0x80f0
+        mem[0x0045] = 0x80;
+
+        fn _t(mem: &[u8], a: u8, y: u8, expect: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            cpu.y = y;
+            cpu.patch_memory(0, mem);
+            cpu.step();
+
+            assert!(cpu.a == expect);
+            assert!(cpu.p == expected_flags);
+        }
+
+        //  mem     a    y expect flags
+        mem[0x8101] = 0;
+        _t(&mem,    0, 0x11,    0, Z_Zero);
+        mem[0x8101] = 0x55;
+        _t(&mem, 0xff, 0x11, 0x55, 0);
+        mem[0x8101] = 0xaa;
+        _t(&mem, 0xff, 0x11, 0xaa, N_Negative);
+        mem[0x8101] = 0;
+        _t(&mem, 0xaa, 0x11, 0x00, Z_Zero);
+        mem[0x8101] = 0x80;
+        _t(&mem, 0xaa, 0x11, 0x80, N_Negative);
+        mem[0x8101] = 0x7c;
+        _t(&mem, 0x3a, 0x11, 0x38, 0);
     }
 }
