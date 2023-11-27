@@ -556,7 +556,7 @@ impl Cpu {
             opcodes::INC_EE => { // INC $nnnn
                 let addr = self.get_addr();
                 let mut a = self.memory[addr];
-                a.wrapping_add(1);// += 1;
+                a = a.wrapping_add(1);
                 self.update_negative(a & 0x80 != 0);
                 self.update_zero(a == 0);
                 self.memory[addr] = a;
@@ -565,7 +565,7 @@ impl Cpu {
             opcodes::INC_FE => { // INC $nnnn,X
                 let addr = self.get_addr() + self.x as usize;
                 let mut a = self.memory[addr];
-                a.wrapping_add(1);
+                a = a.wrapping_add(1);
                 self.update_negative(a & 0x80 != 0);
                 self.update_zero(a == 0);
                 self.memory[addr] = a;
@@ -574,7 +574,7 @@ impl Cpu {
             opcodes::INC_E6 => { // INC $nn
                 let addr = self.get_addr_zero_page();
                 let mut a = self.memory[addr];
-                a.wrapping_add(1);
+                a = a.wrapping_add(1);
                 self.update_negative(a & 0x80 != 0);
                 self.update_zero(a == 0);
                 self.memory[addr] = a;
@@ -583,7 +583,7 @@ impl Cpu {
             opcodes::INC_F6 => { // INC $nn,X
                 let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
                 let mut a = self.memory[addr];
-                a.wrapping_sub(1);
+                a = a.wrapping_add(1);
                 self.update_negative(a & 0x80 != 0);
                 self.update_zero(a == 0);
                 self.memory[addr] = a;
@@ -633,35 +633,39 @@ impl Cpu {
             //
             opcodes::DEC_CE => { // DEC $nnnn
                 let addr = self.get_addr();
+                println!(".> addr: {addr:04x}");
                 let mut a = self.memory[addr];
-                a.wrapping_sub(1);
+                println!("> a: {a}");
+                a = a.wrapping_sub(1);
+                println!("> a: {a}");
                 self.update_negative(a & 0x80 != 0);
                 self.update_zero(a == 0);
                 self.memory[addr] = a;
+                println!("> mem[{addr:04x}]: {a}");
                 self.pc += 2;
             }
-            opcodes::DEC_CE => { // DEC $nnnn,X
+            opcodes::DEC_DE => { // DEC $nnnn,X
                 let addr = self.get_addr() + self.x as usize;
                 let mut a = self.memory[addr];
-                a.wrapping_sub(1);
+                a = a.wrapping_sub(1);
                 self.update_negative(a & 0x80 != 0);
                 self.update_zero(a == 0);
                 self.memory[addr] = a;
                 self.pc += 2;
             }
-            opcodes::DEC_CE => { // DEC $nn
+            opcodes::DEC_C6 => { // DEC $nn
                 let addr = self.get_addr_zero_page();
                 let mut a = self.memory[addr];
-                a.wrapping_sub(1);
+                a = a.wrapping_sub(1);
                 self.update_negative(a & 0x80 != 0);
                 self.update_zero(a == 0);
                 self.memory[addr] = a;
                 self.pc += 1;
             }
-            opcodes::DEC_CE => { // DEC $nn,X
+            opcodes::DEC_D6 => { // DEC $nn,X
                 let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
                 let mut a = self.memory[addr];
-                a.wrapping_sub(1);
+                a = a.wrapping_sub(1);
                 self.update_negative(a & 0x80 != 0);
                 self.update_zero(a == 0);
                 self.memory[addr] = a;
@@ -2010,20 +2014,115 @@ mod tests {
         assert_eq!(cpu, fresh);
     }
 
-    // immediate, 1 byte instructions
-    // #[test]
-    fn test_inc() {
-        // let mut cpu = Cpu::new();
-        // cpu.run_opcode()
-        //
+    //
+    // INC
+    //
+    #[test]
+    fn test_inc_ee() { // INC $nnnn
+        let mut cpu = Cpu::new();
+        let mut expected: u8 = 200u8;
+
+        let mut mem: [u8; MEM_SZ] = [0; MEM_SZ];
+        mem[0] = INC_EE; // INC $4000
+        mem[1] = 0x00;
+        mem[2] = 0x40;
+        mem[0x4000] = 200;
+        cpu.patch_memory(0, &mem);
+
+        for _ in 1..512 {
+            cpu.pc = 0x0000;
+            cpu.step();
+            expected = expected.wrapping_add(1);
+
+            assert_eq!(cpu.memory[0x4000], expected);
+
+            let expected_z: bool = expected == 0;
+            let expected_n = (expected & 0x80) > 0;
+            assert_eq!((cpu.p & Flags::Z_Zero) > 0, expected_z);
+            assert_eq!(cpu.p & Flags::N_Negative > 0, expected_n);
+        }
     }
 
-    fn test_dec() {
-        //
+    #[test]
+    fn test_inc_fe() { // INC $nnnn,X
+        let mut cpu = Cpu::new();
+        cpu.x = 0x35;
+        let mut expected: u8 = 200u8;
+
+        let mut mem: [u8; MEM_SZ] = [0; MEM_SZ];
+        mem[0] = INC_FE; // INC $4000
+        mem[1] = 0x20;
+        mem[2] = 0x40;
+        mem[0x4055] = 200;
+        cpu.patch_memory(0, &mem);
+
+        for _ in 1..512 {
+            cpu.pc = 0x0000;
+            cpu.step();
+            expected = expected.wrapping_add(1);
+
+            assert_eq!(cpu.memory[0x4055], expected);
+
+            let expected_z: bool = expected == 0;
+            let expected_n = (expected & 0x80) > 0;
+            assert_eq!((cpu.p & Flags::Z_Zero) > 0, expected_z);
+            assert_eq!(cpu.p & Flags::N_Negative > 0, expected_n);
+        }
+    }
+
+    #[test]
+    fn test_inc_e6() { // INC $nn
+        let mut cpu = Cpu::new();
+        let mut expected: u8 = 200u8;
+
+        let mut mem: [u8; MEM_SZ] = [0; MEM_SZ];
+        mem[0] = INC_E6; // INC $4000
+        mem[1] = 0x20;
+        mem[0x0020] = 200;
+        cpu.patch_memory(0, &mem);
+
+        for _ in 1..512 {
+            cpu.pc = 0x0000;
+            cpu.step();
+            expected = expected.wrapping_add(1);
+
+            assert_eq!(cpu.memory[0x0020], expected);
+
+            let expected_z: bool = expected == 0;
+            let expected_n = (expected & 0x80) > 0;
+            assert_eq!((cpu.p & Flags::Z_Zero) > 0, expected_z);
+            assert_eq!(cpu.p & Flags::N_Negative > 0, expected_n);
+        }
+    }
+
+    #[test]
+    fn test_inc_f6() { // INC $nn,X
+        let mut cpu = Cpu::new();
+        cpu.x = 0x35;
+        let mut expected: u8 = 200u8;
+
+        let mut mem: [u8; MEM_SZ] = [0; MEM_SZ];
+        mem[0] = INC_F6; // INC $4000
+        mem[1] = 0x20;
+        mem[0x0055] = 200;
+        cpu.patch_memory(0, &mem);
+
+        for _ in 1..512 {
+            cpu.pc = 0x0000;
+            cpu.step();
+            expected = expected.wrapping_add(1);
+
+            assert_eq!(cpu.memory[0x0055], expected);
+
+            let expected_z: bool = expected == 0;
+            let expected_n = (expected & 0x80) > 0;
+            assert_eq!((cpu.p & Flags::Z_Zero) > 0, expected_z);
+            assert_eq!(cpu.p & Flags::N_Negative > 0, expected_n);
+        }
     }
 
     //
-    // INCREMENT
+    // INX
     //
     #[test]
     fn test_inx() {
@@ -2075,6 +2174,113 @@ mod tests {
             let expected_n = expected_y as u8 & 0x80;
             assert_eq!((cpu.p & Flags::Z_Zero) > 0, expected_z);
             assert_eq!(cpu.p & Flags::N_Negative, expected_n);
+        }
+    }
+
+    //
+    // DEC
+    //
+    #[test]
+    fn test_dec_ce() { // DEC $nnnn
+        let mut cpu = Cpu::new();
+        let mut expected: u8 = 200u8;
+
+        let mut mem: [u8; MEM_SZ] = [0; MEM_SZ];
+        mem[0] = DEC_CE; // DEC $4000
+        mem[1] = 0x00;
+        mem[2] = 0x40;
+        mem[0x4000] = 200;
+        cpu.patch_memory(0, &mem);
+
+        for _ in 1..512 {
+            cpu.pc = 0x0000;
+            cpu.step();
+            expected = expected.wrapping_sub(1);
+
+            assert_eq!(cpu.memory[0x4000], expected);
+
+            let expected_z: bool = expected == 0;
+            let expected_n = (expected & 0x80) > 0;
+            assert_eq!((cpu.p & Flags::Z_Zero) > 0, expected_z);
+            assert_eq!(cpu.p & Flags::N_Negative > 0, expected_n);
+        }
+    }
+
+    #[test]
+    fn test_dec_de() { // DEC $nnnn,X
+        let mut cpu = Cpu::new();
+        cpu.x = 0x35;
+        let mut expected: u8 = 200u8;
+
+        let mut mem: [u8; MEM_SZ] = [0; MEM_SZ];
+        mem[0] = DEC_DE; // DEC $4000
+        mem[1] = 0x20;
+        mem[2] = 0x40;
+        mem[0x4055] = 200;
+        cpu.patch_memory(0, &mem);
+
+        for _ in 1..512 {
+            cpu.pc = 0x0000;
+            cpu.step();
+            expected = expected.wrapping_sub(1);
+
+            assert_eq!(cpu.memory[0x4055], expected);
+
+            let expected_z: bool = expected == 0;
+            let expected_n = (expected & 0x80) > 0;
+            assert_eq!((cpu.p & Flags::Z_Zero) > 0, expected_z);
+            assert_eq!(cpu.p & Flags::N_Negative > 0, expected_n);
+        }
+    }
+
+    #[test]
+    fn test_dec_c6() { // DEC $nn
+        let mut cpu = Cpu::new();
+        let mut expected: u8 = 200u8;
+
+        let mut mem: [u8; MEM_SZ] = [0; MEM_SZ];
+        mem[0] = DEC_C6; // DEC $4000
+        mem[1] = 0x20;
+        mem[0x0020] = 200;
+        cpu.patch_memory(0, &mem);
+
+        for _ in 1..512 {
+            cpu.pc = 0x0000;
+            cpu.step();
+            expected = expected.wrapping_sub(1);
+
+            assert_eq!(cpu.memory[0x0020], expected);
+
+            let expected_z: bool = expected == 0;
+            let expected_n = (expected & 0x80) > 0;
+            assert_eq!((cpu.p & Flags::Z_Zero) > 0, expected_z);
+            assert_eq!(cpu.p & Flags::N_Negative > 0, expected_n);
+        }
+    }
+
+    #[test]
+    fn test_dec_d6() { // DEC $nn,X
+        let mut cpu = Cpu::new();
+        cpu.x = 0x35;
+        let mut expected: u8 = 200u8;
+
+        let mut mem: [u8; MEM_SZ] = [0; MEM_SZ];
+        mem[0] = DEC_D6; // DEC $4000
+        mem[1] = 0x20;
+        mem[0x0055] = 200;
+        cpu.patch_memory(0, &mem);
+
+        for _ in 1..512 {
+            cpu.pc = 0x0000;
+            cpu.step();
+            expected = expected.wrapping_sub(1);
+
+            assert_eq!(cpu.memory[0x0055], expected);
+
+            let expected_z: bool = expected == 0;
+            let expected_n = (expected & 0x80) > 0;
+            assert_eq!((cpu.p & Flags::Z_Zero) > 0, expected_z);
+            assert_eq!(cpu.p & Flags::N_Negative > 0, expected_n);
         }
     }
 
