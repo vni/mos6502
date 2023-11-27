@@ -9,6 +9,7 @@
 //          no pre-calculated addresses passed to test
 
 // TODO: Add separate functions for different addressing modes
+// TODO: use update_*() all over the code
 
 const MEM_SZ: usize = 65_536;
 
@@ -129,10 +130,19 @@ mod opcodes {
     pub const SBC: u8 = 0x00;
 
     // increment
-    pub const DEC: u8 = 0x00; // TODO
+    pub const DEC_CE: u8 = 0xCE;
+    pub const DEC_DE: u8 = 0xDE;
+    pub const DEC_C6: u8 = 0xC6;
+    pub const DEC_D6: u8 = 0xD6;
+
     pub const DEX_CA: u8 = 0xCA;
     pub const DEY_88: u8 = 0x88;
-    pub const INC: u8 = 0x00; // TODO
+
+    pub const INC_EE: u8 = 0xEE;
+    pub const INC_FE: u8 = 0xFE;
+    pub const INC_E6: u8 = 0xE6;
+    pub const INC_F6: u8 = 0xF6;
+
     pub const INX_E8: u8 = 0xE8;
     pub const INY_C8: u8 = 0xC8;
 
@@ -541,6 +551,46 @@ impl Cpu {
             }
 
             //
+            // INCREMENT - INC
+            //
+            opcodes::INC_EE => { // INC $nnnn
+                let addr = self.get_addr();
+                let mut a = self.memory[addr];
+                a.wrapping_add(1);// += 1;
+                self.update_negative(a & 0x80 != 0);
+                self.update_zero(a == 0);
+                self.memory[addr] = a;
+                self.pc += 2;
+            }
+            opcodes::INC_FE => { // INC $nnnn,X
+                let addr = self.get_addr() + self.x as usize;
+                let mut a = self.memory[addr];
+                a.wrapping_add(1);
+                self.update_negative(a & 0x80 != 0);
+                self.update_zero(a == 0);
+                self.memory[addr] = a;
+                self.pc += 2;
+            }
+            opcodes::INC_E6 => { // INC $nn
+                let addr = self.get_addr_zero_page();
+                let mut a = self.memory[addr];
+                a.wrapping_add(1);
+                self.update_negative(a & 0x80 != 0);
+                self.update_zero(a == 0);
+                self.memory[addr] = a;
+                self.pc += 1;
+            }
+            opcodes::INC_F6 => { // INC $nn,X
+                let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
+                let mut a = self.memory[addr];
+                a.wrapping_sub(1);
+                self.update_negative(a & 0x80 != 0);
+                self.update_zero(a == 0);
+                self.memory[addr] = a;
+                self.pc += 1;
+            }
+
+            //
             // INCREMENT - INX
             //
             opcodes::INX_E8 => {
@@ -576,6 +626,46 @@ impl Cpu {
                 self.p |= (result & Flags::N_Negative as u16) as u8;
 
                 self.y = result as u8;
+            }
+
+            //
+            // INCREMENT - DEC
+            //
+            opcodes::DEC_CE => { // DEC $nnnn
+                let addr = self.get_addr();
+                let mut a = self.memory[addr];
+                a.wrapping_sub(1);
+                self.update_negative(a & 0x80 != 0);
+                self.update_zero(a == 0);
+                self.memory[addr] = a;
+                self.pc += 2;
+            }
+            opcodes::DEC_CE => { // DEC $nnnn,X
+                let addr = self.get_addr() + self.x as usize;
+                let mut a = self.memory[addr];
+                a.wrapping_sub(1);
+                self.update_negative(a & 0x80 != 0);
+                self.update_zero(a == 0);
+                self.memory[addr] = a;
+                self.pc += 2;
+            }
+            opcodes::DEC_CE => { // DEC $nn
+                let addr = self.get_addr_zero_page();
+                let mut a = self.memory[addr];
+                a.wrapping_sub(1);
+                self.update_negative(a & 0x80 != 0);
+                self.update_zero(a == 0);
+                self.memory[addr] = a;
+                self.pc += 1;
+            }
+            opcodes::DEC_CE => { // DEC $nn,X
+                let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
+                let mut a = self.memory[addr];
+                a.wrapping_sub(1);
+                self.update_negative(a & 0x80 != 0);
+                self.update_zero(a == 0);
+                self.memory[addr] = a;
+                self.pc += 1;
             }
 
             //
