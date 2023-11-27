@@ -10,6 +10,7 @@
 
 // TODO: Add separate functions for different addressing modes
 // TODO: use update_*() all over the code
+// TODO: update tests for AND, ORA, EOR to have common code for different addressing modes
 
 const MEM_SZ: usize = 65_536;
 
@@ -324,6 +325,18 @@ impl Cpu {
 
     fn _and_inst(&mut self, val: u8) {
         self.a &= val;
+        self.update_zero(self.a == 0);
+        self.update_negative(self.a & 0x80 != 0);
+    }
+
+    fn _eor_inst(&mut self, val: u8) {
+        self.a ^= val;
+        self.update_zero(self.a == 0);
+        self.update_negative(self.a & 0x80 != 0);
+    }
+
+    fn _ora_inst(&mut self, val: u8) {
+        self.a |= val;
         self.update_zero(self.a == 0);
         self.update_negative(self.a & 0x80 != 0);
     }
@@ -1134,11 +1147,119 @@ impl Cpu {
                 self.pc += 1;
             }
             opcodes::AND_31 => { // AND ($nn),Y
-                let addr = self.get_addr_zero_page(); // + self.x as usize) & 0xff;
+                let addr = self.get_addr_zero_page();
                 let mut addr2 = (self.memory[(addr + 1) & 0xff] as usize) << 8;
                 addr2 |= self.memory[addr] as usize;
                 addr2 += self.y as usize;
                 self._and_inst(self.memory[addr2]);
+                self.pc += 1;
+            }
+
+            //
+            // BIT
+            //
+            opcodes::BIT_2C => { // BIT $nnnn
+                unimplemented!();
+            }
+            opcodes::BIT_24 => { // BIT $nn
+                unimplemented!();
+            }
+
+            //
+            // EOR
+            //
+            opcodes::EOR_49 => { // EOR #$49
+                let nn = self.get_addr_zero_page() as u8;
+                self._eor_inst(nn);
+                self.pc += 1;
+            }
+            opcodes::EOR_4D => { // EOR $nnnn
+                let addr = self.get_addr();
+                self._eor_inst(self.memory[addr]);
+                self.pc += 2;
+            }
+            opcodes::EOR_5D => { // EOR $nnnn,X
+                let addr = self.get_addr() + self.x as usize;
+                self._eor_inst(self.memory[addr]);
+                self.pc += 2;
+            }
+            opcodes::EOR_59 => { // EOR $nnnn,Y
+                let addr = self.get_addr() + self.y as usize;
+                self._eor_inst(self.memory[addr]);
+                self.pc += 2;
+            }
+            opcodes::EOR_45 => { // EOR $nn
+                let addr = self.get_addr_zero_page();
+                self._eor_inst(self.memory[addr]);
+                self.pc += 1;
+            }
+            opcodes::EOR_55 => { // EOR $nn,X
+                let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
+                self._eor_inst(self.memory[addr]);
+                self.pc += 1;
+            }
+            opcodes::EOR_41 => { // EOR ($nn,X)
+                let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
+                let mut addr2 = (self.memory[(addr + 1) & 0xff] as usize) << 8;
+                addr2 |= self.memory[addr] as usize;
+                self._eor_inst(self.memory[addr2]);
+                self.pc += 1;
+            }
+            opcodes::EOR_51 => { // EOR ($nn),Y
+                let addr = self.get_addr_zero_page();
+                let mut addr2 = (self.memory[(addr + 1) & 0xff] as usize) << 8;
+                addr2 |= self.memory[addr] as usize;
+                addr2 += self.y as usize;
+                self._eor_inst(self.memory[addr2]);
+                self.pc += 1;
+            }
+
+            //
+            // ORA
+            //
+            opcodes::ORA_09 => { // ORA #$nn
+                let nn = self.get_addr_zero_page() as u8;
+                self._ora_inst(nn);
+                self.pc += 1;
+            }
+            opcodes::ORA_0D => { // ORA $nnnn
+                let addr = self.get_addr();
+                self._ora_inst(self.memory[addr]);
+                self.pc += 2;
+            }
+            opcodes::ORA_1D => { // ORA $nnnn,X
+                let addr = self.get_addr() + self.x as usize;
+                self._ora_inst(self.memory[addr]);
+                self.pc += 2;
+            }
+            opcodes::ORA_19 => { // ORA $nnnn,Y
+                let addr = self.get_addr() + self.y as usize;
+                self._ora_inst(self.memory[addr]);
+                self.pc += 2;
+            }
+            opcodes::ORA_05 => { // ORA $nn
+                let addr = self.get_addr_zero_page();
+                self._ora_inst(self.memory[addr]);
+                self.pc += 1;
+            }
+            opcodes::ORA_15 => { // ORA $nn,X
+                let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
+                self._ora_inst(self.memory[addr]);
+                self.pc += 1;
+            }
+            opcodes::ORA_01 => { // ORA ($nn,X)
+                let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
+                let mut addr2 = (self.memory[(addr + 1) & 0xff] as usize) << 8;
+                addr2 |= self.memory[addr] as usize;
+                self._ora_inst(self.memory[addr2]);
+                self.pc += 1;
+            }
+            opcodes::ORA_11 => { // ORA ($nn),Y
+                let addr = self.get_addr_zero_page();
+                let mut addr2 = (self.memory[(addr + 1) & 0xff] as usize) << 8;
+                addr2 |= self.memory[addr] as usize;
+                addr2 += self.y as usize;
+                self._ora_inst(self.memory[addr2]);
                 self.pc += 1;
             }
 
@@ -3651,7 +3772,7 @@ mod tests {
     }
 
     #[test]
-    fn test_and_2D() { // AND $nnnn
+    fn test_and_2d() { // AND $nnnn
         let mut mem = [0u8; MEM_SZ];
         mem[0] = AND_2D; // AND $3320
         mem[1] = 0x20;
@@ -3683,7 +3804,7 @@ mod tests {
     }
 
     #[test]
-    fn test_and_3D() { // AND $nnnn,X
+    fn test_and_3d() { // AND $nnnn,X
         let mut mem = [0u8; MEM_SZ];
         mem[0] = AND_3D; // AND $3320,X
         mem[1] = 0x20;
@@ -3877,5 +3998,532 @@ mod tests {
         _t(&mem, 0xaa, 0x11, 0x80, N_Negative);
         mem[0x8101] = 0x7c;
         _t(&mem, 0x3a, 0x11, 0x38, 0);
+    }
+
+    //
+    // BIT
+    //
+    #[test]
+    fn test_bit_2c() { // BIT $nnnn
+        unimplemented!();
+    }
+
+    #[test]
+    fn test_bit_24() { // BIT $nn
+        unimplemented!();
+    }
+
+    //
+    // EOR
+    //
+    #[test]
+    fn test_eor_49() { // EOR #$nn
+        fn _t(a: u8, val: u8, expect: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            let memory: &[u8] = &[EOR_49, val];
+            cpu.patch_memory(0, memory);
+            cpu.step();
+
+            assert!(cpu.a == expect);
+            assert!(cpu.p == expected_flags);
+        }
+
+        //    a   val expect flags
+        _t(   0,    0,    0, Z_Zero);
+        _t(0xff, 0x55, 0xaa, N_Negative);
+        _t(0xff, 0xaa, 0x55, 0);
+        _t(0xaa, 0x55, 0xff, N_Negative);
+        _t(0xaa, 0xc0, 0x6a, 0);
+        _t(0x3a, 0x7c, 0x46, 0);
+    }
+
+    #[test]
+    fn test_eor_4d() { // EOR $nnnn
+        let mut mem = [0u8; MEM_SZ];
+        mem[0] = EOR_4D; // EOR $3320
+        mem[1] = 0x20;
+        mem[2] = 0x33;
+
+        fn _t(mem: &[u8], a: u8, expect: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            cpu.patch_memory(0, mem);
+            cpu.step();
+
+            assert!(cpu.a == expect);
+            assert!(cpu.p == expected_flags);
+        }
+
+        //  mem     a expect flags
+        mem[0x3320] = 0;
+        _t(&mem,    0,    0, Z_Zero);
+        mem[0x3320] = 0x55;
+        _t(&mem, 0xff, 0xaa, N_Negative);
+        mem[0x3320] = 0xaa;
+        _t(&mem, 0xff, 0x55, 0);
+        mem[0x3320] = 0;
+        _t(&mem, 0xaa, 0xaa, N_Negative);
+        mem[0x3320] = 0x80;
+        _t(&mem, 0xaa, 0x2a, 0);
+        mem[0x3320] = 0x7c;
+        _t(&mem, 0x3a, 0x46, 0);
+    }
+
+    #[test]
+    fn test_eor_5d() { // EOR $nnnn,X
+        let mut mem = [0u8; MEM_SZ];
+        mem[0] = EOR_5D; // EOR $3320,X
+        mem[1] = 0x20;
+        mem[2] = 0x33;
+
+        fn _t(mem: &[u8], a: u8, x: u8, expect: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            cpu.x = x;
+            cpu.patch_memory(0, mem);
+            cpu.step();
+
+            assert!(cpu.a == expect);
+            assert!(cpu.p == expected_flags);
+        }
+
+        //  mem     a    x expect flags
+        mem[0x3340] = 0;
+        _t(&mem,    0, 0x20,    0, Z_Zero);
+        mem[0x3340] = 0x55;
+        _t(&mem, 0xff, 0x20, 0xaa, N_Negative);
+        mem[0x3340] = 0xaa;
+        _t(&mem, 0xff, 0x20, 0x55, 0);
+        mem[0x3340] = 0;
+        _t(&mem, 0xaa, 0x20, 0xaa, N_Negative);
+        mem[0x3340] = 0x80;
+        _t(&mem, 0xaa, 0x20, 0x2a, 0);
+        mem[0x3340] = 0x7c;
+        _t(&mem, 0x3a, 0x20, 0x46, 0);
+    }
+
+    #[test]
+    fn test_eor_59() { // EOR $nnnn,Y
+        let mut mem = [0u8; MEM_SZ];
+        mem[0] = EOR_59; // EOR $3320,Y
+        mem[1] = 0x20;
+        mem[2] = 0x33;
+
+        fn _t(mem: &[u8], a: u8, y: u8, expect: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            cpu.y = y;
+            cpu.patch_memory(0, mem);
+            cpu.step();
+
+            assert!(cpu.a == expect);
+            assert!(cpu.p == expected_flags);
+        }
+
+        //  mem     a    x expect flags
+        mem[0x3340] = 0;
+        _t(&mem,    0, 0x20,    0, Z_Zero);
+        mem[0x3340] = 0x55;
+        _t(&mem, 0xff, 0x20, 0xaa, N_Negative);
+        mem[0x3340] = 0xaa;
+        _t(&mem, 0xff, 0x20, 0x55, 0);
+        mem[0x3340] = 0;
+        _t(&mem, 0xaa, 0x20, 0xaa, N_Negative);
+        mem[0x3340] = 0x80;
+        _t(&mem, 0xaa, 0x20, 0x2a, 0);
+        mem[0x3340] = 0x7c;
+        _t(&mem, 0x3a, 0x20, 0x46, 0);
+    }
+
+    #[test]
+    fn test_eor_45() { // EOR $nn
+        let mut mem = [0u8; MEM_SZ];
+        mem[0] = EOR_45; // EOR $33
+        mem[1] = 0x33;
+
+        fn _t(mem: &[u8], a: u8, expect: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            cpu.patch_memory(0, mem);
+            cpu.step();
+
+            assert!(cpu.a == expect);
+            assert!(cpu.p == expected_flags);
+        }
+
+        //  mem     a expect flags
+        mem[0x0033] = 0;
+        _t(&mem,    0,    0, Z_Zero);
+        mem[0x0033] = 0x55;
+        _t(&mem, 0xff, 0xaa, N_Negative);
+        mem[0x0033] = 0xaa;
+        _t(&mem, 0xff, 0x55, 0);
+        mem[0x0033] = 0;
+        _t(&mem, 0xaa, 0xaa, N_Negative);
+        mem[0x0033] = 0x80;
+        _t(&mem, 0xaa, 0x2a, 0);
+        mem[0x0033] = 0x7c;
+        _t(&mem, 0x3a, 0x46, 0);
+    }
+
+    #[test]
+    fn test_eor_55() { // EOR $nn,X
+        let mut mem = [0u8; MEM_SZ];
+        mem[0] = EOR_55; // EOR $44,X
+        mem[1] = 0x44;
+
+        fn _t(mem: &[u8], a: u8, x: u8, expect: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            cpu.x = x;
+            cpu.patch_memory(0, mem);
+            cpu.step();
+
+            assert!(cpu.a == expect);
+            assert!(cpu.p == expected_flags);
+        }
+
+        //  mem     a    x expect flags
+        mem[0x0055] = 0;
+        _t(&mem,    0, 0x11,    0, Z_Zero);
+        mem[0x0055] = 0x55;
+        _t(&mem, 0xff, 0x11, 0xaa, N_Negative);
+        mem[0x0055] = 0xaa;
+        _t(&mem, 0xff, 0x11, 0x55, 0);
+        mem[0x0055] = 0;
+        _t(&mem, 0xaa, 0x11, 0xaa, N_Negative);
+        mem[0x0055] = 0x80;
+        _t(&mem, 0xaa, 0x11, 0x2a, 0);
+        mem[0x0055] = 0x7c;
+        _t(&mem, 0x3a, 0x11, 0x46, 0);
+    }
+
+    #[test]
+    fn test_eor_41() { // EOR ($nn,X)
+        let mut mem = [0u8; MEM_SZ];
+        mem[0] = EOR_41; // EOR ($44,X)
+        mem[1] = 0x44;
+        mem[0x0055] = 0xf0; // 0x80f0
+        mem[0x0056] = 0x80;
+
+        fn _t(mem: &[u8], a: u8, x: u8, expect: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            cpu.x = x;
+            cpu.patch_memory(0, mem);
+            cpu.step();
+
+            assert!(cpu.a == expect);
+            assert!(cpu.p == expected_flags);
+        }
+
+        //  mem     a    x expect flags
+        mem[0x80f0] = 0;
+        _t(&mem,    0, 0x11,    0, Z_Zero);
+        mem[0x80f0] = 0x55;
+        _t(&mem, 0xff, 0x11, 0xaa, N_Negative);
+        mem[0x80f0] = 0xaa;
+        _t(&mem, 0xff, 0x11, 0x55, 0);
+        mem[0x80f0] = 0;
+        _t(&mem, 0xaa, 0x11, 0xaa, N_Negative);
+        mem[0x80f0] = 0x80;
+        _t(&mem, 0xaa, 0x11, 0x2a, 0);
+        mem[0x80f0] = 0x7c;
+        _t(&mem, 0x3a, 0x11, 0x46, 0);
+    }
+
+    #[test]
+    fn test_eor_51() { // EOR ($nn),Y
+        let mut mem = [0u8; MEM_SZ];
+        mem[0] = EOR_51; // EOR ($44,Y)
+        mem[1] = 0x44;
+        mem[0x0044] = 0xf0; // 0x80f0
+        mem[0x0045] = 0x80;
+
+        fn _t(mem: &[u8], a: u8, y: u8, expect: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            cpu.y = y;
+            cpu.patch_memory(0, mem);
+            cpu.step();
+
+            assert!(cpu.a == expect);
+            assert!(cpu.p == expected_flags);
+        }
+
+        //  mem     a    y expect flags
+        mem[0x8101] = 0;
+        _t(&mem,    0, 0x11,    0, Z_Zero);
+        mem[0x8101] = 0x55;
+        _t(&mem, 0xff, 0x11, 0xaa, N_Negative);
+        mem[0x8101] = 0xaa;
+        _t(&mem, 0xff, 0x11, 0x55, 0);
+        mem[0x8101] = 0;
+        _t(&mem, 0xaa, 0x11, 0xaa, N_Negative);
+        mem[0x8101] = 0x80;
+        _t(&mem, 0xaa, 0x11, 0x2a, 0);
+        mem[0x8101] = 0x7c;
+        _t(&mem, 0x3a, 0x11, 0x46, 0);
+    }
+
+    //
+    // ORA
+    //
+    #[test]
+    fn test_ora_09() { // ORA #$nn
+        fn _t(a: u8, val: u8, expect: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            let memory: &[u8] = &[ORA_09, val];
+            cpu.patch_memory(0, memory);
+            cpu.step();
+
+            assert!(cpu.a == expect);
+            assert!(cpu.p == expected_flags);
+        }
+
+        //    a   val expect flags
+        dbg!(".0");
+        _t(   0,    0,    0, Z_Zero);
+        dbg!(".1");
+        _t(0xff, 0x55, 0xff, N_Negative);
+        dbg!(".2");
+        _t(0xff, 0xaa, 0xff, N_Negative);
+        dbg!(".3");
+        _t(0xaa, 0x55, 0xff, N_Negative);
+        dbg!(".4");
+        _t(0xaa, 0xc0, 0xea, N_Negative);
+        dbg!(".5");
+        _t(0x3a, 0x7c, 0x7e, 0);
+    }
+
+    #[test]
+    fn test_ora_0d() { // ORA $nnnn
+        let mut mem = [0u8; MEM_SZ];
+        mem[0] = ORA_0D; // ORA $3320
+        mem[1] = 0x20;
+        mem[2] = 0x33;
+
+        fn _t(mem: &[u8], a: u8, expect: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            cpu.patch_memory(0, mem);
+            cpu.step();
+
+            assert!(cpu.a == expect);
+            assert!(cpu.p == expected_flags);
+        }
+
+        //  mem     a expect flags
+        mem[0x3320] = 0;
+        _t(&mem,    0,    0, Z_Zero);
+        mem[0x3320] = 0x55;
+        _t(&mem, 0xff, 0xff, N_Negative);
+        mem[0x3320] = 0xaa;
+        _t(&mem, 0xff, 0xff, N_Negative);
+        mem[0x3320] = 0;
+        _t(&mem, 0xaa, 0xaa, N_Negative);
+        mem[0x3320] = 0x80;
+        _t(&mem, 0xaa, 0xaa, N_Negative);
+        mem[0x3320] = 0x7c;
+        _t(&mem, 0x3a, 0x7e, 0);
+    }
+
+    #[test]
+    fn test_ora_1d() { // ORA $nnnn,X
+        let mut mem = [0u8; MEM_SZ];
+        mem[0] = ORA_1D; // ORA $3320,X
+        mem[1] = 0x20;
+        mem[2] = 0x33;
+
+        fn _t(mem: &[u8], a: u8, x: u8, expect: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            cpu.x = x;
+            cpu.patch_memory(0, mem);
+            cpu.step();
+
+            assert!(cpu.a == expect);
+            assert!(cpu.p == expected_flags);
+        }
+
+        //  mem     a    x expect flags
+        mem[0x3340] = 0;
+        _t(&mem,    0, 0x20,    0, Z_Zero);
+        mem[0x3340] = 0x55;
+        _t(&mem, 0xff, 0x20, 0xff, N_Negative);
+        mem[0x3340] = 0xaa;
+        _t(&mem, 0xff, 0x20, 0xff, N_Negative);
+        mem[0x3340] = 0;
+        _t(&mem, 0xaa, 0x20, 0xaa, N_Negative);
+        mem[0x3340] = 0x80;
+        _t(&mem, 0xaa, 0x20, 0xaa, N_Negative);
+        mem[0x3340] = 0x7c;
+        _t(&mem, 0x3a, 0x20, 0x7e, 0);
+    }
+
+    #[test]
+    fn test_ora_19() { // ORA $nnnn,Y
+        let mut mem = [0u8; MEM_SZ];
+        mem[0] = ORA_19; // ORA $3320,Y
+        mem[1] = 0x20;
+        mem[2] = 0x33;
+
+        fn _t(mem: &[u8], a: u8, y: u8, expect: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            cpu.y = y;
+            cpu.patch_memory(0, mem);
+            cpu.step();
+
+            assert!(cpu.a == expect);
+            assert!(cpu.p == expected_flags);
+        }
+
+        //  mem     a    x expect flags
+        mem[0x3340] = 0;
+        _t(&mem,    0, 0x20,    0, Z_Zero);
+        mem[0x3340] = 0x55;
+        _t(&mem, 0xff, 0x20, 0xff, N_Negative);
+        mem[0x3340] = 0xaa;
+        _t(&mem, 0xff, 0x20, 0xff, N_Negative);
+        mem[0x3340] = 0;
+        _t(&mem, 0xaa, 0x20, 0xaa, N_Negative);
+        mem[0x3340] = 0x80;
+        _t(&mem, 0xaa, 0x20, 0xaa, N_Negative);
+        mem[0x3340] = 0x7c;
+        _t(&mem, 0x3a, 0x20, 0x7e, 0);
+    }
+
+    #[test]
+    fn test_ora_05() { // ORA $nn
+        let mut mem = [0u8; MEM_SZ];
+        mem[0] = ORA_05; // ORA $33
+        mem[1] = 0x33;
+
+        fn _t(mem: &[u8], a: u8, expect: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            cpu.patch_memory(0, mem);
+            cpu.step();
+
+            assert!(cpu.a == expect);
+            assert!(cpu.p == expected_flags);
+        }
+
+        //  mem     a expect flags
+        mem[0x0033] = 0;
+        _t(&mem,    0,    0, Z_Zero);
+        mem[0x0033] = 0x55;
+        _t(&mem, 0xff, 0xff, N_Negative);
+        mem[0x0033] = 0xaa;
+        _t(&mem, 0xff, 0xff, N_Negative);
+        mem[0x0033] = 0;
+        _t(&mem, 0xaa, 0xaa, N_Negative);
+        mem[0x0033] = 0x80;
+        _t(&mem, 0xaa, 0xaa, N_Negative);
+        mem[0x0033] = 0x7c;
+        _t(&mem, 0x3a, 0x7e, 0);
+    }
+
+    #[test]
+    fn test_ora_15() { // ORA $nn,X
+        let mut mem = [0u8; MEM_SZ];
+        mem[0] = ORA_15; // ORA $44,X
+        mem[1] = 0x44;
+
+        fn _t(mem: &[u8], a: u8, x: u8, expect: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            cpu.x = x;
+            cpu.patch_memory(0, mem);
+            cpu.step();
+
+            assert!(cpu.a == expect);
+            assert!(cpu.p == expected_flags);
+        }
+
+        //  mem     a    x expect flags
+        mem[0x0055] = 0;
+        _t(&mem,    0, 0x11,    0, Z_Zero);
+        mem[0x0055] = 0x55;
+        _t(&mem, 0xff, 0x11, 0xff, N_Negative);
+        mem[0x0055] = 0xaa;
+        _t(&mem, 0xff, 0x11, 0xff, N_Negative);
+        mem[0x0055] = 0;
+        _t(&mem, 0xaa, 0x11, 0xaa, N_Negative);
+        mem[0x0055] = 0x80;
+        _t(&mem, 0xaa, 0x11, 0xaa, N_Negative);
+        mem[0x0055] = 0x7c;
+        _t(&mem, 0x3a, 0x11, 0x7e, 0);
+    }
+
+    #[test]
+    fn test_ora_01() { // ORA ($nn,X)
+        let mut mem = [0u8; MEM_SZ];
+        mem[0] = ORA_01; // ORA ($44,X)
+        mem[1] = 0x44;
+        mem[0x0055] = 0xf0; // 0x80f0
+        mem[0x0056] = 0x80;
+
+        fn _t(mem: &[u8], a: u8, x: u8, expect: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            cpu.x = x;
+            cpu.patch_memory(0, mem);
+            cpu.step();
+
+            assert!(cpu.a == expect);
+            assert!(cpu.p == expected_flags);
+        }
+
+        //  mem     a    x expect flags
+        mem[0x80f0] = 0;
+        _t(&mem,    0, 0x11,    0, Z_Zero);
+        mem[0x80f0] = 0x55;
+        _t(&mem, 0xff, 0x11, 0xff, N_Negative);
+        mem[0x80f0] = 0xaa;
+        _t(&mem, 0xff, 0x11, 0xff, N_Negative);
+        mem[0x80f0] = 0;
+        _t(&mem, 0xaa, 0x11, 0xaa, N_Negative);
+        mem[0x80f0] = 0x80;
+        _t(&mem, 0xaa, 0x11, 0xaa, N_Negative);
+        mem[0x80f0] = 0x7c;
+        _t(&mem, 0x3a, 0x11, 0x7e, 0);
+    }
+
+    #[test]
+    fn test_ora_11() { // ORA ($nn),Y
+        let mut mem = [0u8; MEM_SZ];
+        mem[0] = ORA_11; // ORA ($44,Y)
+        mem[1] = 0x44;
+        mem[0x0044] = 0xf0; // 0x80f0
+        mem[0x0045] = 0x80;
+
+        fn _t(mem: &[u8], a: u8, y: u8, expect: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            cpu.y = y;
+            cpu.patch_memory(0, mem);
+            cpu.step();
+
+            assert!(cpu.a == expect);
+            assert!(cpu.p == expected_flags);
+        }
+
+        //  mem     a    y expect flags
+        mem[0x8101] = 0;
+        _t(&mem,    0, 0x11,    0, Z_Zero);
+        mem[0x8101] = 0x55;
+        _t(&mem, 0xff, 0x11, 0xff, N_Negative);
+        mem[0x8101] = 0xaa;
+        _t(&mem, 0xff, 0x11, 0xff, N_Negative);
+        mem[0x8101] = 0;
+        _t(&mem, 0xaa, 0x11, 0xaa, N_Negative);
+        mem[0x8101] = 0x80;
+        _t(&mem, 0xaa, 0x11, 0xaa, N_Negative);
+        mem[0x8101] = 0x7c;
+        _t(&mem, 0x3a, 0x11, 0x7e, 0);
     }
 }
