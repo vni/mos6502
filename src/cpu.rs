@@ -731,6 +731,7 @@ impl Cpu {
                 let v = self.get_addr_zero_page();
                 let r: u16 = self.a as u16 + v as u16 + c;
                 self.a = r as u8;
+                // TODO: Add overflow flag update
                 self.update_negative(r & 0x80 != 0);
                 self.update_zero(r & 0xff == 0);
                 self.update_carry(r & 0x0100 != 0);
@@ -749,6 +750,7 @@ impl Cpu {
                 let v = self.memory[addr];
                 let r: u16 = self.a as u16 + v as u16 + c;
                 self.a = r as u8;
+                // TODO: Add overflow flag update
                 self.update_negative(r & 0x80 != 0);
                 self.update_zero(r & 0xff == 0);
                 self.update_carry(r & 0x0100 != 0);
@@ -767,6 +769,7 @@ impl Cpu {
                 let v = self.memory[addr];
                 let r = self.a as u16 + v as u16 + c;
                 self.a = r as u8;
+                // TODO: Add overflow flag update
                 self.update_negative(r & 0x80 != 0);
                 self.update_zero(r & 0xff == 0);
                 self.update_carry(r & 0x0100 != 0);
@@ -785,6 +788,7 @@ impl Cpu {
                 let v = self.memory[addr];
                 let r: u16 = self.a as u16 + v as u16 + c;
                 self.a = r as u8;
+                // TODO: Add overflow flag update
                 self.update_negative(r & 0x80 != 0);
                 self.update_zero(r & 0xff == 0);
                 self.update_carry(r & 0x0100 != 0);
@@ -803,6 +807,7 @@ impl Cpu {
                 let v = self.memory[addr];
                 let r: u16 = self.a as u16 + v as u16 + c;
                 self.a = r as u8;
+                // TODO: Add overflow flag update
                 self.update_negative(r & 0x80 != 0);
                 self.update_zero(r & 0xff == 0);
                 self.update_carry(r & 0x0100 != 0);
@@ -821,6 +826,7 @@ impl Cpu {
                 let v = self.memory[addr];
                 let r: u16 = self.a as u16 + v as u16 + c;
                 self.a = r as u8;
+                // TODO: Add overflow flag update
                 self.update_negative(r & 0x80 != 0);
                 self.update_zero(r & 0xff == 0);
                 self.update_carry(r & 0x0100 != 0);
@@ -841,6 +847,7 @@ impl Cpu {
                 let v = self.memory[addr2];
                 let r: u16 = self.a as u16 + v as u16 + c;
                 self.a = r as u8;
+                // TODO: Add overflow flag update
                 self.update_negative(r & 0x80 != 0);
                 self.update_zero(r & 0xff == 0);
                 self.update_carry(r & 0x0100 != 0);
@@ -862,12 +869,172 @@ impl Cpu {
                 let v = self.memory[addr2];
                 let r: u16 = self.a as u16 + v as u16 + c;
                 self.a = r as u8;
+                // TODO: Add overflow flag update
                 self.update_negative(r & 0x80 != 0);
                 self.update_zero(r & 0xff == 0);
                 self.update_carry(r & 0x0100 != 0);
                 self.pc += 1;
             }
 
+            //
+            // ARITH - SBC
+            //
+            opcodes::SBC_E9 => { // SBC #$nn
+                if self.is_decimal() {
+                    unimplemented!();
+                }
+                let c: u16 = if self.is_carry() {
+                    1
+                } else {
+                    0
+                };
+                let v = self.get_addr_zero_page();
+                let r: u16 = 0x0100 + self.a as u16 - v as u16 - c;
+                self.a = r as u8;
+                // TODO: Add overflow flag update
+                self.update_negative(r & 0x80 != 0);
+                self.update_zero(r & 0xff == 0);
+                self.update_carry(r & 0x0100 != 0);
+                self.pc += 1;
+            }
+            opcodes::SBC_ED => { // SBC $nnnn
+                if self.is_decimal() {
+                    unimplemented!();
+                }
+                let c: u16 = if self.is_carry() {
+                    1
+                } else {
+                    0
+                };
+                let addr = self.get_addr();
+                let v = self.memory[addr];
+                let r: u16 = 0x0100 + self.a as u16 - v as u16 - c;
+                self.a = r as u8;
+                // TODO: Add overflow flag update
+                self.update_negative(r & 0x80 != 0);
+                self.update_zero(r & 0xff == 0);
+                self.update_carry(r & 0x0100 != 0);
+                self.pc += 2;
+            }
+            opcodes::SBC_FD => { // SBC $nnnn,X
+                if self.is_decimal() {
+                    unimplemented!();
+                }
+                let c: u16 = if self.is_carry() {
+                    1
+                } else {
+                    0
+                };
+                let addr = self.get_addr() + self.x as usize;
+                let v = self.memory[addr];
+                let r = 0x0100 + self.a as u16 - v as u16 - c;
+                self.a = r as u8;
+                // TODO: Add overflow flag update
+                self.update_negative(r & 0x80 != 0);
+                self.update_zero(r & 0xff == 0);
+                self.update_carry(r & 0x0100 != 0);
+                self.pc += 2;
+            }
+            opcodes::SBC_F9 => { // SBC $nnnn,Y
+                if self.is_decimal() {
+                    unimplemented!();
+                }
+                let c: u16 = if self.is_carry() {
+                    1
+                } else {
+                    0
+                };
+                let addr = self.get_addr() + self.y as usize;
+                let v = self.memory[addr];
+                let r: u16 = 0x0100 + self.a as u16 - v as u16 - c;
+                self.a = r as u8;
+                // TODO: Add overflow flag update
+                self.update_negative(r & 0x80 != 0);
+                self.update_zero(r & 0xff == 0);
+                self.update_carry(r & 0x0100 != 0);
+                self.pc += 2;
+            }
+            opcodes::SBC_E5 => { // SBC $nn
+                if self.is_decimal() {
+                    unimplemented!();
+                }
+                let c: u16 = if self.is_carry() {
+                    1
+                } else {
+                    0
+                };
+                let addr = self.get_addr_zero_page();
+                let v = self.memory[addr];
+                let r: u16 = 0x0100 + self.a as u16 - v as u16 - c;
+                self.a = r as u8;
+                // TODO: Add overflow flag update
+                self.update_negative(r & 0x80 != 0);
+                self.update_zero(r & 0xff == 0);
+                self.update_carry(r & 0x0100 != 0);
+                self.pc += 1;
+            }
+            opcodes::SBC_F5 => { // SBC $nn,X
+                if self.is_decimal() {
+                    unimplemented!();
+                }
+                let c: u16 = if self.is_carry() {
+                    1
+                } else {
+                    0
+                };
+                let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
+                let v = self.memory[addr];
+                let r: u16 = 0x0100 + self.a as u16 - v as u16 - c;
+                self.a = r as u8;
+                // TODO: Add overflow flag update
+                self.update_negative(r & 0x80 != 0);
+                self.update_zero(r & 0xff == 0);
+                self.update_carry(r & 0x0100 != 0);
+                self.pc += 1;
+            }
+            opcodes::SBC_E1 => { // SBC ($nn,X)
+                if self.is_decimal() {
+                    unimplemented!();
+                }
+                let c: u16 = if self.is_carry() {
+                    1
+                } else {
+                    0
+                };
+                let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
+                let mut addr2 = (self.memory[(addr+1) & 0xff] as usize) << 8;
+                addr2 += self.memory[addr] as usize;
+                let v = self.memory[addr2];
+                let r: u16 = 0x0100 + self.a as u16 - v as u16 - c;
+                self.a = r as u8;
+                // TODO: Add overflow flag update
+                self.update_negative(r & 0x80 != 0);
+                self.update_zero(r & 0xff == 0);
+                self.update_carry(r & 0x0100 != 0);
+                self.pc += 1;
+            }
+            opcodes::SBC_F1 => { // SBC ($nn),Y
+                if self.is_decimal() {
+                    unimplemented!();
+                }
+                let c: u16 = if self.is_carry() {
+                    1
+                } else {
+                    0
+                };
+                let addr = self.get_addr_zero_page();
+                let mut addr2 = (self.memory[(addr+1) & 0xff] as usize) << 8;
+                addr2 += self.memory[addr] as usize;
+                addr2 += self.y as usize;
+                let v = self.memory[addr2];
+                let r: u16 = 0x0100 + self.a as u16 - v as u16 - c;
+                self.a = r as u8;
+                // TODO: Add overflow flag update
+                self.update_negative(r & 0x80 != 0);
+                self.update_zero(r & 0xff == 0);
+                self.update_carry(r & 0x0100 != 0);
+                self.pc += 1;
+            }
 
             //
             // ARITH - CMP
@@ -1009,11 +1176,6 @@ impl Cpu {
                 self.update_carry(r & 0x0100 != 0);
                 self.pc += 1;
             }
-
-            //
-            // ARITH - SBC
-            //
-            // FIXME: TODO:
 
             //
             // INCREMENT - DEC
