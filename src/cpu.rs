@@ -149,11 +149,40 @@ mod opcodes {
     pub const ORA_11: u8 = 0x11;
 
     // arith
-    pub const ADC: u8 = 0x00;
-    pub const CMP: u8 = 0x00;
-    pub const CPX: u8 = 0x00;
-    pub const CPY: u8 = 0x00;
-    pub const SBC: u8 = 0x00;
+    pub const ADC_69: u8 = 0x69;
+    pub const ADC_6D: u8 = 0x6D;
+    pub const ADC_7D: u8 = 0x7D;
+    pub const ADC_79: u8 = 0x79;
+    pub const ADC_65: u8 = 0x65;
+    pub const ADC_75: u8 = 0x75;
+    pub const ADC_61: u8 = 0x61;
+    pub const ADC_71: u8 = 0x71;
+
+    pub const CMP_C9: u8 = 0xC9;
+    pub const CMP_CD: u8 = 0xCD;
+    pub const CMP_DD: u8 = 0xDD;
+    pub const CMP_D9: u8 = 0xD9;
+    pub const CMP_C5: u8 = 0xC5;
+    pub const CMP_D5: u8 = 0xD5;
+    pub const CMP_C1: u8 = 0xC1;
+    pub const CMP_D1: u8 = 0xD1;
+
+    pub const CPX_E0: u8 = 0xE0;
+    pub const CPX_EC: u8 = 0xEC;
+    pub const CPX_E4: u8 = 0xE4;
+
+    pub const CPY_C0: u8 = 0xC0;
+    pub const CPY_CC: u8 = 0xCC;
+    pub const CPY_C4: u8 = 0xC4;
+
+    pub const SBC_E9: u8 = 0xE9;
+    pub const SBC_ED: u8 = 0xED;
+    pub const SBC_FD: u8 = 0xFD;
+    pub const SBC_F9: u8 = 0xF9;
+    pub const SBC_E5: u8 = 0xE5;
+    pub const SBC_F5: u8 = 0xF5;
+    pub const SBC_E1: u8 = 0xE1;
+    pub const SBC_F1: u8 = 0xF1;
 
     // increment
     pub const DEC_CE: u8 = 0xCE;
@@ -686,6 +715,79 @@ impl Cpu {
 
                 self.y = result as u8;
             }
+
+            //
+            // ARITH - ADC
+            //
+            // FIXME: TODO:
+
+            //
+            // ARITH - CMP
+            //
+            // FIXME: TODO:
+
+            //
+            // ARITH - CPX
+            //
+            opcodes::CPX_E0 => { // CPX #$nn
+                let m = self.get_addr_zero_page();
+                let r: u16 = (0x0100 + self.x as u16) - m as u16;
+                self.update_negative(r & 0x80 != 0);
+                self.update_zero(r & 0xff == 0);
+                self.update_carry(r & 0x0100 != 0);
+                self.pc += 1;
+            }
+            opcodes::CPX_EC => { // CPX $nnnn
+                let addr = self.get_addr();
+                let m = self.memory[addr];
+                let r: u16 = (0x0100 + self.x as u16) - m as u16;
+                self.update_negative(r & 0x80 != 0);
+                self.update_zero(r & 0xff == 0);
+                self.update_carry(r & 0x0100 != 0);
+                self.pc += 2;
+            }
+            opcodes::CPX_E4 => { // CPX $nn
+                let m = self.get_addr_zero_page();
+                let r: u16 = (0x0100 + self.x as u16) - m as u16;
+                self.update_negative(r & 0x80 != 0);
+                self.update_zero(r & 0xff == 0);
+                self.update_carry(r & 0x0100 != 0);
+                self.pc += 1;
+            }
+
+            //
+            // ARITH - CPY
+            //
+            opcodes::CPY_C0 => { // CPY #$nn
+                let m = self.get_addr_zero_page();
+                let r: u16 = (0x0100 + self.y as u16) - m as u16;
+                self.update_negative(r & 0x80 != 0);
+                self.update_zero(r & 0xff == 0);
+                self.update_carry(r & 0x0100 != 0);
+                self.pc += 1;
+            }
+            opcodes::CPY_CC => { // CPY $nnnn
+                let addr = self.get_addr();
+                let m = self.memory[addr];
+                let r: u16 = (0x0100 + self.y as u16) - m as u16;
+                self.update_negative(r & 0x80 != 0);
+                self.update_zero(r & 0xff == 0);
+                self.update_carry(r & 0x0100 != 0);
+                self.pc += 2;
+            }
+            opcodes::CPY_C4 => { // CPY $nn
+                let m = self.get_addr_zero_page();
+                let r: u16 = (0x0100 + self.y as u16) - m as u16;
+                self.update_negative(r & 0x80 != 0);
+                self.update_zero(r & 0xff == 0);
+                self.update_carry(r & 0x0100 != 0);
+                self.pc += 1;
+            }
+
+            //
+            // ARITH - SBC
+            //
+            // FIXME: TODO:
 
             //
             // INCREMENT - DEC
