@@ -385,6 +385,54 @@ impl Cpu {
         self.update_negative(self.a & 0x80 != 0);
     }
 
+    //
+    // Addressing
+    //
+    fn _immediate(&mut self) -> u8 {
+        let addr = self.get_addr_zero_page();
+        self.memory[addr]
+    }
+
+    fn _absolute(&mut self) -> &mut u8 {
+        let addr = self.get_addr();
+        &mut self.memory[addr]
+    }
+
+    fn _absolute_x(&mut self) -> &mut u8 {
+        let addr = self.get_addr() + self.x as usize;
+        &mut self.memory[addr]
+    }
+
+    fn _absolute_y(&mut self) -> &mut u8 {
+        let addr = self.get_addr() + self.y as usize;
+        &mut self.memory[addr]
+    }
+
+    fn _zero_page(&mut self) -> &mut u8 {
+        let addr = self.get_addr_zero_page();
+        &mut self.memory[addr]
+    }
+
+    fn _zero_page_x(&mut self) -> &mut u8 {
+        let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
+        &mut self.memory[addr]
+    }
+
+    fn _zero_page_x_indirect(&mut self) -> &mut u8 {
+        let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
+        let mut addr2 = self.memory[addr] as usize;
+        addr2 += self.memory[(addr + 1) & 0xff] as usize;
+        &mut self.memory[addr2]
+    }
+
+    fn _zero_page_indirect_y(&mut self) -> &mut u8 {
+        let addr = self.get_addr_zero_page();
+        let mut addr2 = self.memory[addr] as usize; // lo
+        addr2 += (self.memory[(addr+1) & 0xff] as usize) << 8; // hi
+        addr2 += self.y as usize;
+        &mut self.memory[addr2]
+    }
+
     fn reset(&mut self) {
         self.a = 0;
         self.x = 0;
