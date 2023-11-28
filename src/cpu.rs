@@ -729,6 +729,7 @@ impl Cpu {
             //
             // ARITH - CPX
             //
+            // FIXME: 0x30 - 0x40 ? -0x10 ? should the N_Negative flags be set or not?
             opcodes::CPX_E0 => { // CPX #$nn
                 let m = self.get_addr_zero_page();
                 let r: u16 = (0x0100 + self.x as u16) - m as u16;
@@ -747,7 +748,8 @@ impl Cpu {
                 self.pc += 2;
             }
             opcodes::CPX_E4 => { // CPX $nn
-                let m = self.get_addr_zero_page();
+                let addr = self.get_addr_zero_page();
+                let m = self.memory[addr];
                 let r: u16 = (0x0100 + self.x as u16) - m as u16;
                 self.update_negative(r & 0x80 != 0);
                 self.update_zero(r & 0xff == 0);
@@ -776,7 +778,8 @@ impl Cpu {
                 self.pc += 2;
             }
             opcodes::CPY_C4 => { // CPY $nn
-                let m = self.get_addr_zero_page();
+                let addr = self.get_addr_zero_page();
+                let m = self.memory[addr];
                 let r: u16 = (0x0100 + self.y as u16) - m as u16;
                 self.update_negative(r & 0x80 != 0);
                 self.update_zero(r & 0xff == 0);
@@ -2497,6 +2500,168 @@ mod tests {
             assert_eq!((cpu.p & Flags::Z_Zero) > 0, expected_z);
             assert_eq!(cpu.p & Flags::N_Negative, expected_n);
         }
+    }
+
+    //
+    // CPX
+    //
+    #[test]
+    fn test_cpx_e0() { // CPX #$nn
+        fn _t(x: u8, val: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.x = x;
+            let mut mem = [0u8; MEM_SZ];
+            mem[0] = CPX_E0;
+            mem[1] = val;
+
+            cpu.patch_memory(0, &mem);
+            cpu.step();
+
+            assert!(cpu.p == expected_flags);
+        }
+
+        //    x   val  flags
+        _t(0x00, 0x00, Z_Zero | C_Carry);
+        _t(0x80, 0x00, N_Negative | C_Carry);
+        _t(0x50, 0x40, C_Carry);
+        _t(0x40, 0x50, N_Negative);
+        _t(0x00, 0x50, N_Negative);
+        _t(0x20, 0x00, C_Carry);
+        _t(0x55, 0x55, Z_Zero | C_Carry);
+    }
+
+    #[test]
+    fn test_cpx_ec() { // CPX $nnnn
+        fn _t(x: u8, val: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.x = x;
+            let mut mem = [0u8; MEM_SZ];
+            mem[0] = CPX_EC;
+            mem[1] = 0x30;
+            mem[2] = 0x10;
+            mem[0x1030] = val;
+
+            cpu.patch_memory(0, &mem);
+            cpu.step();
+
+            assert!(cpu.p == expected_flags);
+        }
+
+        //    x   val  flags
+        _t(0x00, 0x00, Z_Zero | C_Carry);
+        _t(0x80, 0x00, N_Negative | C_Carry);
+        _t(0x50, 0x40, C_Carry);
+        _t(0x40, 0x50, N_Negative);
+        _t(0x00, 0x50, N_Negative);
+        _t(0x20, 0x00, C_Carry);
+        _t(0x55, 0x55, Z_Zero | C_Carry);
+    }
+
+    #[test]
+    fn test_cpx_e4() { // CPX $nn
+        fn _t(x: u8, val: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.x = x;
+            let mut mem = [0u8; MEM_SZ];
+            mem[0] = CPX_E4;
+            mem[1] = 0x30;
+            mem[0x0030] = val;
+
+            cpu.patch_memory(0, &mem);
+            cpu.step();
+
+            assert!(cpu.p == expected_flags);
+        }
+
+        //    x   val  flags
+        _t(0x00, 0x00, Z_Zero | C_Carry);
+        _t(0x80, 0x00, N_Negative | C_Carry);
+        _t(0x50, 0x40, C_Carry);
+        _t(0x40, 0x50, N_Negative);
+        _t(0x00, 0x50, N_Negative);
+        _t(0x20, 0x00, C_Carry);
+        _t(0x55, 0x55, Z_Zero | C_Carry);
+    }
+
+    //
+    // CPY
+    //
+    #[test]
+    fn test_cpy_c0() { // CPY #$nn
+        fn _t(y: u8, val: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.y = y;
+            let mut mem = [0u8; MEM_SZ];
+            mem[0] = CPY_C0;
+            mem[1] = val;
+
+            cpu.patch_memory(0, &mem);
+            cpu.step();
+
+            assert!(cpu.p == expected_flags);
+        }
+
+        //    y   val  flags
+        _t(0x00, 0x00, Z_Zero | C_Carry);
+        _t(0x80, 0x00, N_Negative | C_Carry);
+        _t(0x50, 0x40, C_Carry);
+        _t(0x40, 0x50, N_Negative);
+        _t(0x00, 0x50, N_Negative);
+        _t(0x20, 0x00, C_Carry);
+        _t(0x55, 0x55, Z_Zero | C_Carry);
+    }
+
+    #[test]
+    fn test_cpy_cc() { // CPY $nnnn
+        fn _t(y: u8, val: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.y = y;
+            let mut mem = [0u8; MEM_SZ];
+            mem[0] = CPY_CC;
+            mem[1] = 0x30;
+            mem[2] = 0x10;
+            mem[0x1030] = val;
+
+            cpu.patch_memory(0, &mem);
+            cpu.step();
+
+            assert!(cpu.p == expected_flags);
+        }
+
+        //    y   val  flags
+        _t(0x00, 0x00, Z_Zero | C_Carry);
+        _t(0x80, 0x00, N_Negative | C_Carry);
+        _t(0x50, 0x40, C_Carry);
+        _t(0x40, 0x50, N_Negative);
+        _t(0x00, 0x50, N_Negative);
+        _t(0x20, 0x00, C_Carry);
+        _t(0x55, 0x55, Z_Zero | C_Carry);
+    }
+
+    #[test]
+    fn test_cpy_c4() { // CPY $nn
+        fn _t(y: u8, val: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.y = y;
+            let mut mem = [0u8; MEM_SZ];
+            mem[0] = CPY_C4;
+            mem[1] = 0x30;
+            mem[0x0030] = val;
+
+            cpu.patch_memory(0, &mem);
+            cpu.step();
+
+            assert!(cpu.p == expected_flags);
+        }
+
+        //    y   val  flags
+        _t(0x00, 0x00, Z_Zero | C_Carry);
+        _t(0x80, 0x00, N_Negative | C_Carry);
+        _t(0x50, 0x40, C_Carry);
+        _t(0x40, 0x50, N_Negative);
+        _t(0x00, 0x50, N_Negative);
+        _t(0x20, 0x00, C_Carry);
+        _t(0x55, 0x55, Z_Zero | C_Carry);
     }
 
     //
