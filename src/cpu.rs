@@ -719,7 +719,155 @@ impl Cpu {
             //
             // ARITH - ADC
             //
-            // FIXME: TODO:
+            opcodes::ADC_69 => { // ADC #$nn
+                if self.is_decimal() {
+                    unimplemented!();
+                }
+                let c: u16 = if self.is_carry() {
+                    1
+                } else {
+                    0
+                };
+                let v = self.get_addr_zero_page();
+                let r: u16 = self.a as u16 + v as u16 + c;
+                self.a = r as u8;
+                self.update_negative(r & 0x80 != 0);
+                self.update_zero(r & 0xff == 0);
+                self.update_carry(r & 0x0100 != 0);
+                self.pc += 1;
+            }
+            opcodes::ADC_6D => { // ADC $nnnn
+                if self.is_decimal() {
+                    unimplemented!();
+                }
+                let c: u16 = if self.is_carry() {
+                    1
+                } else {
+                    0
+                };
+                let addr = self.get_addr();
+                let v = self.memory[addr];
+                let r: u16 = self.a as u16 + v as u16 + c;
+                self.a = r as u8;
+                self.update_negative(r & 0x80 != 0);
+                self.update_zero(r & 0xff == 0);
+                self.update_carry(r & 0x0100 != 0);
+                self.pc += 2;
+            }
+            opcodes::ADC_7D => { // ADC $nnnn,X
+                if self.is_decimal() {
+                    unimplemented!();
+                }
+                let c: u16 = if self.is_carry() {
+                    1
+                } else {
+                    0
+                };
+                let addr = self.get_addr() + self.x as usize;
+                let v = self.memory[addr];
+                let r = self.a as u16 + v as u16 + c;
+                self.a = r as u8;
+                self.update_negative(r & 0x80 != 0);
+                self.update_zero(r & 0xff == 0);
+                self.update_carry(r & 0x0100 != 0);
+                self.pc += 2;
+            }
+            opcodes::ADC_79 => { // ADC $nnnn,Y
+                if self.is_decimal() {
+                    unimplemented!();
+                }
+                let c: u16 = if self.is_carry() {
+                    1
+                } else {
+                    0
+                };
+                let addr = self.get_addr() + self.y as usize;
+                let v = self.memory[addr];
+                let r: u16 = self.a as u16 + v as u16 + c;
+                self.a = r as u8;
+                self.update_negative(r & 0x80 != 0);
+                self.update_zero(r & 0xff == 0);
+                self.update_carry(r & 0x0100 != 0);
+                self.pc += 2;
+            }
+            opcodes::ADC_65 => { // ADC $nn
+                if self.is_decimal() {
+                    unimplemented!();
+                }
+                let c: u16 = if self.is_carry() {
+                    1
+                } else {
+                    0
+                };
+                let addr = self.get_addr_zero_page();
+                let v = self.memory[addr];
+                let r: u16 = self.a as u16 + v as u16 + c;
+                self.a = r as u8;
+                self.update_negative(r & 0x80 != 0);
+                self.update_zero(r & 0xff == 0);
+                self.update_carry(r & 0x0100 != 0);
+                self.pc += 1;
+            }
+            opcodes::ADC_75 => { // ADC $nn,X
+                if self.is_decimal() {
+                    unimplemented!();
+                }
+                let c: u16 = if self.is_carry() {
+                    1
+                } else {
+                    0
+                };
+                let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
+                let v = self.memory[addr];
+                let r: u16 = self.a as u16 + v as u16 + c;
+                self.a = r as u8;
+                self.update_negative(r & 0x80 != 0);
+                self.update_zero(r & 0xff == 0);
+                self.update_carry(r & 0x0100 != 0);
+                self.pc += 1;
+            }
+            opcodes::ADC_61 => { // ADC ($nn,X)
+                if self.is_decimal() {
+                    unimplemented!();
+                }
+                let c: u16 = if self.is_carry() {
+                    1
+                } else {
+                    0
+                };
+                let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
+                let mut addr2 = (self.memory[(addr+1) & 0xff] as usize) << 8;
+                addr2 += self.memory[addr] as usize;
+                let v = self.memory[addr2];
+                let r: u16 = self.a as u16 + v as u16 + c;
+                self.a = r as u8;
+                self.update_negative(r & 0x80 != 0);
+                self.update_zero(r & 0xff == 0);
+                self.update_carry(r & 0x0100 != 0);
+                self.pc += 1;
+            }
+            opcodes::ADC_71 => { // ADC ($nn),Y
+                if self.is_decimal() {
+                    unimplemented!();
+                }
+                let c: u16 = if self.is_carry() {
+                    1
+                } else {
+                    0
+                };
+                let addr = self.get_addr_zero_page();
+                let mut addr2 = (self.memory[(addr+1) & 0xff] as usize) << 8;
+                addr2 += self.memory[addr] as usize;
+                addr2 += self.y as usize;
+                let v = self.memory[addr2];
+                let r: u16 = self.a as u16 + v as u16 + c;
+                self.a = r as u8;
+                self.update_negative(r & 0x80 != 0);
+                self.update_zero(r & 0xff == 0);
+                self.update_carry(r & 0x0100 != 0);
+                self.pc += 1;
+            }
+
 
             //
             // ARITH - CMP
@@ -792,7 +940,7 @@ impl Cpu {
                 let addr = self.get_addr_zero_page();
                 let mut addr2 = (self.memory[(addr+1) & 0xff] as usize) << 8;
                 addr2 += self.memory[addr] as usize;
-                addr2 += self.y as usize;;
+                addr2 += self.y as usize;
                 let m = self.memory[addr2];
                 let r: u16 = (0x0100 + self.a as u16) - m as u16;
                 self.update_negative(r & 0x80 != 0);
