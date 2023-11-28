@@ -724,7 +724,82 @@ impl Cpu {
             //
             // ARITH - CMP
             //
-            // FIXME: TODO:
+            opcodes::CMP_C9 => { // CMP #$nn
+                let m = self.get_addr_zero_page();
+                let r: u16 = (0x0100 + self.a as u16) - m as u16;
+                self.update_negative(r & 0x80 != 0);
+                self.update_zero(r & 0xff == 0);
+                self.update_carry(r & 0x0100 != 0);
+                self.pc += 1;
+            }
+            opcodes::CMP_CD => { // CMP $nnnn
+                let addr = self.get_addr();
+                let m = self.memory[addr];
+                let r: u16 = (0x0100 + self.a as u16) - m as u16;
+                self.update_negative(r & 0x80 != 0);
+                self.update_zero(r & 0xff == 0);
+                self.update_carry(r & 0x0100 != 0);
+                self.pc += 2;
+            }
+            opcodes::CMP_DD => { // CMP $nnnn,X
+                let addr = self.get_addr() + self.x as usize;
+                let m = self.memory[addr];
+                let r: u16 = (0x0100 + self.a as u16) - m as u16;
+                self.update_negative(r & 0x80 != 0);
+                self.update_zero(r & 0xff == 0);
+                self.update_carry(r & 0x0100 != 0);
+                self.pc += 2;
+            }
+            opcodes::CMP_D9 => { // CMP $nnnn,Y
+                let addr = self.get_addr() + self.y as usize;
+                let m = self.memory[addr];
+                let r: u16 = (0x0100 + self.a as u16) - m as u16;
+                self.update_negative(r & 0x80 != 0);
+                self.update_zero(r & 0xff == 0);
+                self.update_carry(r & 0x0100 != 0);
+                self.pc += 2;
+            }
+            opcodes::CMP_C5 => { // CMP $nn
+                let addr = self.get_addr_zero_page();
+                let m = self.memory[addr];
+                let r: u16 = (0x0100 + self.a as u16) - m as u16;
+                self.update_negative(r & 0x80 != 0);
+                self.update_zero(r & 0xff == 0);
+                self.update_carry(r & 0x0100 != 0);
+                self.pc += 1;
+            }
+            opcodes::CMP_D5 => { // CMP $nn,X
+                let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
+                let m = self.memory[addr];
+                let r: u16 = (0x0100 + self.a as u16) - m as u16;
+                self.update_negative(r & 0x80 != 0);
+                self.update_zero(r & 0xff == 0);
+                self.update_carry(r & 0x0100 != 0);
+                self.pc += 1;
+            }
+            opcodes::CMP_C1 => { // CMP ($nn,X)
+                let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
+                let mut addr2 = (self.memory[(addr+1) & 0xff] as usize) << 8;
+                addr2 += self.memory[addr] as usize;
+                let m = self.memory[addr2];
+                let r: u16 = (0x0100 + self.a as u16) - m as u16;
+                self.update_negative(r & 0x80 != 0);
+                self.update_zero(r & 0xff == 0);
+                self.update_carry(r & 0x0100 != 0);
+                self.pc += 1;
+            }
+            opcodes::CMP_D1 => { // CMP ($nn),Y
+                let addr = self.get_addr_zero_page();
+                let mut addr2 = (self.memory[(addr+1) & 0xff] as usize) << 8;
+                addr2 += self.memory[addr] as usize;
+                addr2 += self.y as usize;;
+                let m = self.memory[addr2];
+                let r: u16 = (0x0100 + self.a as u16) - m as u16;
+                self.update_negative(r & 0x80 != 0);
+                self.update_zero(r & 0xff == 0);
+                self.update_carry(r & 0x0100 != 0);
+                self.pc += 1;
+            }
 
             //
             // ARITH - CPX
@@ -2500,6 +2575,226 @@ mod tests {
             assert_eq!((cpu.p & Flags::Z_Zero) > 0, expected_z);
             assert_eq!(cpu.p & Flags::N_Negative, expected_n);
         }
+    }
+
+    //
+    // CMP
+    //
+    #[test]
+    fn test_cmp_c9() { // CMP #$nn
+        fn _t(a: u8, val: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            let mut mem = [0u8; MEM_SZ];
+            mem[0] = CMP_C9;
+            mem[1] = val;
+
+            cpu.patch_memory(0, &mem);
+            cpu.step();
+
+            assert!(cpu.p == expected_flags);
+        }
+
+        //    a   val  flags
+        _t(0x00, 0x00, Z_Zero | C_Carry);
+        _t(0x80, 0x00, N_Negative | C_Carry);
+        _t(0x50, 0x40, C_Carry);
+        _t(0x40, 0x50, N_Negative);
+        _t(0x00, 0x50, N_Negative);
+        _t(0x20, 0x00, C_Carry);
+        _t(0x55, 0x55, Z_Zero | C_Carry);
+    }
+
+    #[test]
+    fn test_cmp_cd() { // CMP $nnnn
+        fn _t(a: u8, val: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            let mut mem = [0u8; MEM_SZ];
+            mem[0] = CMP_CD;
+            mem[1] = 0x30;
+            mem[2] = 0x10;
+            mem[0x1030] = val;
+
+            cpu.patch_memory(0, &mem);
+            cpu.step();
+
+            assert!(cpu.p == expected_flags);
+        }
+
+        //    a   val  flags
+        _t(0x00, 0x00, Z_Zero | C_Carry);
+        _t(0x80, 0x00, N_Negative | C_Carry);
+        _t(0x50, 0x40, C_Carry);
+        _t(0x40, 0x50, N_Negative);
+        _t(0x00, 0x50, N_Negative);
+        _t(0x20, 0x00, C_Carry);
+        _t(0x55, 0x55, Z_Zero | C_Carry);
+    }
+    #[test]
+    fn test_cmp_dd() { // CMP $nnnn,X
+        fn _t(a: u8, x: u8, val: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            cpu.x = x;
+            let mut mem = [0u8; MEM_SZ];
+            mem[0] = CMP_DD;
+            mem[1] = 0x10;
+            mem[2] = 0x10;
+            mem[0x1030] = val;
+
+            cpu.patch_memory(0, &mem);
+            cpu.step();
+
+            assert!(cpu.p == expected_flags);
+        }
+
+        //    a     x   val  flags
+        _t(0x00, 0x20, 0x00, Z_Zero | C_Carry);
+        _t(0x80, 0x20, 0x00, N_Negative | C_Carry);
+        _t(0x50, 0x20, 0x40, C_Carry);
+        _t(0x40, 0x20, 0x50, N_Negative);
+        _t(0x00, 0x20, 0x50, N_Negative);
+        _t(0x20, 0x20, 0x00, C_Carry);
+        _t(0x55, 0x20, 0x55, Z_Zero | C_Carry);
+    }
+    #[test]
+    fn test_cmp_d9() { // CMP $nnnn,Y
+        fn _t(a: u8, y: u8, val: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            cpu.y = y;
+            let mut mem = [0u8; MEM_SZ];
+            mem[0] = CMP_D9;
+            mem[1] = 0x10;
+            mem[2] = 0x10;
+            mem[0x1030] = val;
+
+            cpu.patch_memory(0, &mem);
+            cpu.step();
+
+            assert!(cpu.p == expected_flags);
+        }
+
+        //    a     y   val  flags
+        _t(0x00, 0x20, 0x00, Z_Zero | C_Carry);
+        _t(0x80, 0x20, 0x00, N_Negative | C_Carry);
+        _t(0x50, 0x20, 0x40, C_Carry);
+        _t(0x40, 0x20, 0x50, N_Negative);
+        _t(0x00, 0x20, 0x50, N_Negative);
+        _t(0x20, 0x20, 0x00, C_Carry);
+        _t(0x55, 0x20, 0x55, Z_Zero | C_Carry);
+    }
+
+    #[test]
+    fn test_cmp_c5() { // CMP $nn
+        fn _t(a: u8, val: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            let mut mem = [0u8; MEM_SZ];
+            mem[0] = CMP_C5;
+            mem[1] = 0x30;
+            mem[0x0030] = val;
+
+            cpu.patch_memory(0, &mem);
+            cpu.step();
+
+            assert!(cpu.p == expected_flags);
+        }
+
+        //    a   val  flags
+        _t(0x00, 0x00, Z_Zero | C_Carry);
+        _t(0x80, 0x00, N_Negative | C_Carry);
+        _t(0x50, 0x40, C_Carry);
+        _t(0x40, 0x50, N_Negative);
+        _t(0x00, 0x50, N_Negative);
+        _t(0x20, 0x00, C_Carry);
+        _t(0x55, 0x55, Z_Zero | C_Carry);
+    }
+
+    #[test]
+    fn test_cmp_d5() { // CMP $nn,X
+        fn _t(a: u8, x: u8, val: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            cpu.x = x;
+            let mut mem = [0u8; MEM_SZ];
+            mem[0] = CMP_D5;
+            mem[1] = 0x30;
+            mem[0x0080] = val;
+
+            cpu.patch_memory(0, &mem);
+            cpu.step();
+
+            assert!(cpu.p == expected_flags);
+        }
+
+        //    a     x   val  flags
+        _t(0x00, 0x50, 0x00, Z_Zero | C_Carry);
+        _t(0x80, 0x50, 0x00, N_Negative | C_Carry);
+        _t(0x50, 0x50, 0x40, C_Carry);
+        _t(0x40, 0x50, 0x50, N_Negative);
+        _t(0x00, 0x50, 0x50, N_Negative);
+        _t(0x20, 0x50, 0x00, C_Carry);
+        _t(0x55, 0x50, 0x55, Z_Zero | C_Carry);
+    }
+
+    #[test]
+    fn test_cmp_c1() { // CMP ($nn,X)
+        fn _t(a: u8, x: u8, val: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            cpu.x = x;
+            let mut mem = [0u8; MEM_SZ];
+            mem[0] = CMP_C1;
+            mem[1] = 0x30;
+            mem[0x0080] = 0x50;
+            mem[0x0081] = 0x46;
+            mem[0x4650] = val;
+
+            cpu.patch_memory(0, &mem);
+            cpu.step();
+
+            assert!(cpu.p == expected_flags);
+        }
+
+        //    a     x   val  flags
+        _t(0x00, 0x50, 0x00, Z_Zero | C_Carry);
+        _t(0x80, 0x50, 0x00, N_Negative | C_Carry);
+        _t(0x50, 0x50, 0x40, C_Carry);
+        _t(0x40, 0x50, 0x50, N_Negative);
+        _t(0x00, 0x50, 0x50, N_Negative);
+        _t(0x20, 0x50, 0x00, C_Carry);
+        _t(0x55, 0x50, 0x55, Z_Zero | C_Carry);
+    }
+
+    #[test]
+    fn test_cmp_d1() { // CMP ($nn),Y
+        fn _t(a: u8, y: u8, val: u8, expected_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            cpu.y = y;
+            let mut mem = [0u8; MEM_SZ];
+            mem[0] = CMP_D1;
+            mem[1] = 0x30;
+            mem[0x0030] = 0x00;
+            mem[0x0031] = 0x40;
+            mem[0x4028] = val;
+
+            cpu.patch_memory(0, &mem);
+            cpu.step();
+
+            assert!(cpu.p == expected_flags);
+        }
+
+        //    a     y   val  flags
+        _t(0x00, 0x28, 0x00, Z_Zero | C_Carry);
+        _t(0x80, 0x28, 0x00, N_Negative | C_Carry);
+        _t(0x50, 0x28, 0x40, C_Carry);
+        _t(0x40, 0x28, 0x50, N_Negative);
+        _t(0x00, 0x28, 0x50, N_Negative);
+        _t(0x20, 0x28, 0x00, C_Carry);
+        _t(0x55, 0x28, 0x55, Z_Zero | C_Carry);
     }
 
     //
