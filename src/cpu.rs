@@ -11,6 +11,8 @@
 // TODO: Add separate functions for different addressing modes
 // TODO: use update_*() all over the code
 // TODO: update tests for AND, ORA, EOR to have common code for different addressing modes
+// TODO: Crossing page boundary (page zero addressing) ? What does it mean ?
+// TODO: _inc_inst
 
 const MEM_SZ: usize = 65_536;
 
@@ -389,8 +391,7 @@ impl Cpu {
     // Addressing
     //
     fn _immediate(&mut self) -> u8 {
-        let addr = self.get_addr_zero_page();
-        self.memory[addr]
+        self.memory[self.pc as usize]
     }
 
     fn _absolute(&mut self) -> &mut u8 {
@@ -418,10 +419,15 @@ impl Cpu {
         &mut self.memory[addr]
     }
 
+    fn _zero_page_y(&mut self) -> &mut u8 {
+        let addr = (self.get_addr_zero_page() + self.y as usize) & 0xff;
+        &mut self.memory[addr]
+    }
+
     fn _zero_page_x_indirect(&mut self) -> &mut u8 {
         let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
         let mut addr2 = self.memory[addr] as usize;
-        addr2 += self.memory[(addr + 1) & 0xff] as usize;
+        addr2 += (self.memory[(addr + 1) & 0xff] as usize) << 8;
         &mut self.memory[addr2]
     }
 
@@ -449,111 +455,84 @@ impl Cpu {
             //
             // LOAD - LDA
             //
-            opcodes::LDA_A9 => {
-                self.a = self.memory[self.pc as usize];
-                self.pc += 1;
+            opcodes::LDA_A9 => { // LDA #$nn
+                self.a = self._immediate();
                 self.update_negative(self.a & 0x80 != 0);
                 self.update_zero(self.a == 0);
+                self.pc += 1;
             }
-            opcodes::LDA_AD => {
-                let addr = self.get_addr() as usize;
-                self.a = self.memory[addr];
-
+            opcodes::LDA_AD => { // LDA $nnnn
+                self.a = *self._absolute();
+                self.update_negative(self.a & 0x80 != 0);
+                self.update_zero(self.a == 0);
                 self.pc += 2;
+            }
+            opcodes::LDA_BD => { // LDA $nnnn,x
+                self.a = *self._absolute_x();
                 self.update_negative(self.a & 0x80 != 0);
                 self.update_zero(self.a == 0);
-            }
-            opcodes::LDA_BD => {
-                let addr = self.get_addr() as usize + self.x as usize;
-                self.a = self.memory[addr];
-
                 self.pc += 2;
+            }
+            opcodes::LDA_B9 => { // LDA $nnnn,y
+                self.a = *self._absolute_y();
                 self.update_negative(self.a & 0x80 != 0);
                 self.update_zero(self.a == 0);
-            }
-            opcodes::LDA_B9 => {
-                let addr = self.get_addr() as usize + self.y as usize;
-                self.a = self.memory[addr];
-
                 self.pc += 2;
-                self.update_negative(self.a & 0x80 != 0);
-                self.update_zero(self.a == 0);
             }
-            opcodes::LDA_A5 => {
-                let addr = self.get_addr_zero_page() as usize ;
-                self.a = self.memory[addr];
-
-                self.pc += 1;
+            opcodes::LDA_A5 => { // LDA $nn
+                self.a = *self._zero_page();
                 self.update_negative(self.a & 0x80 != 0);
                 self.update_zero(self.a == 0);
+                self.pc += 1;
             }
-            opcodes::LDA_B5 => {
-                let mut addr = self.get_addr_zero_page() as usize;
-                addr = (addr + self.x as usize) & 0xff;
-                self.a = self.memory[addr];
-
-                self.pc += 1;
+            opcodes::LDA_B5 => { // LDA $nn,X
+                self.a = *self._zero_page_x();
                 self.update_negative(self.a & 0x80 != 0);
                 self.update_zero(self.a == 0);
+                self.pc += 1;
             }
-            opcodes::LDA_A1 => {
-                let mut addr = self.get_addr_zero_page() as usize;
-                addr = (addr + self.x as usize) & 0xff;
-
-                let mut addr2 = self.memory[addr] as usize;
-                addr2 |= (self.memory[addr + 1] as usize) << 8;
-                self.a = self.memory[addr2];
-
-                self.pc += 1;
+            opcodes::LDA_A1 => { // LDA ($nn,X)
+                self.a = *self._zero_page_x_indirect();
                 self.update_negative(self.a & 0x80 != 0);
                 self.update_zero(self.a == 0);
+                self.pc += 1;
             }
-            opcodes::LDA_B1 => {
-                let addr = self.get_addr_zero_page() as usize;
-
-                let mut addr2 = (self.memory[addr + 1] as usize) << 8;
-                addr2 += self.memory[addr] as usize + self.y as usize;
-
-                self.a = self.memory[addr2];
-
-                self.pc += 1;
+            opcodes::LDA_B1 => { // LDA ($nn),Y
+                self.a = *self._zero_page_indirect_y();
                 self.update_negative(self.a & 0x80 != 0);
                 self.update_zero(self.a == 0);
+                self.pc += 1;
             }
 
             //
             // LOAD - LDX
             //
             opcodes::LDX_A2 => { // LDX #$nn
-                self.x = self.memory[self.pc as usize];
+                self.x = self._immediate();
                 self.update_negative(self.x & 0x80 != 0);
                 self.update_zero(self.x == 0);
                 self.pc += 1;
             }
             opcodes::LDX_AE => { // LDX $nnnn
-                let addr = self.get_addr();
-                self.x = self.memory[addr];
+                self.x = *self._absolute();
                 self.update_negative(self.x & 0x80 != 0);
                 self.update_zero(self.x == 0);
                 self.pc += 2;
             }
             opcodes::LDX_BE => { // LDX $nnnn,Y
-                let addr = self.get_addr() + self.y as usize;
-                self.x = self.memory[addr];
+                self.x = *self._absolute_y();
                 self.update_negative(self.x & 0x80 != 0);
                 self.update_zero(self.x == 0);
                 self.pc += 2;
             }
             opcodes::LDX_A6 => { // LDX $nn
-                let addr = self.get_addr_zero_page();
-                self.x = self.memory[addr];
+                self.x = *self._zero_page();
                 self.update_negative(self.x & 0x80 != 0);
                 self.update_zero(self.x == 0);
                 self.pc += 1;
             }
             opcodes::LDX_B6 => { // LDX $nn,Y
-                let addr = self.get_addr_zero_page() + self.y as usize;
-                self.x = self.memory[addr];
+                self.x = *self._zero_page_y();
                 self.update_negative(self.x & 0x80 != 0);
                 self.update_zero(self.x == 0);
                 self.pc += 1;
@@ -563,35 +542,31 @@ impl Cpu {
             // LOAD - LDY
             //
             opcodes::LDY_A0 => { // LDY #$nn
-                self.y = self.memory[self.pc as usize];
+                self.y = self._immediate();
                 self.update_negative(self.y & 0x80 != 0);
                 self.update_zero(self.y == 0);
                 self.pc += 1;
             }
             opcodes::LDY_AC => { // LDY $nnnn
-                let addr = self.get_addr();
-                self.y = self.memory[addr];
+                self.y = *self._absolute();
                 self.update_negative(self.y & 0x80 != 0);
                 self.update_zero(self.y == 0);
                 self.pc += 2;
             }
             opcodes::LDY_BC => { // LDY $nnnn,X
-                let addr = self.get_addr() + self.x as usize;
-                self.y = self.memory[addr];
+                self.y = *self._absolute_x();
                 self.update_negative(self.y & 0x80 != 0);
                 self.update_zero(self.y == 0);
                 self.pc += 2;
             }
             opcodes::LDY_A4 => { // LDY $nn
-                let addr = self.get_addr_zero_page();
-                self.y = self.memory[addr];
+                self.y = *self._zero_page();
                 self.update_negative(self.y & 0x80 != 0);
                 self.update_zero(self.y == 0);
                 self.pc += 1;
             }
             opcodes::LDY_B4 => { // LDY $nn,X
-                let addr = self.get_addr_zero_page() + self.x as usize;
-                self.y = self.memory[addr];
+                self.y = *self._zero_page_x();
                 self.update_negative(self.y & 0x80 != 0);
                 self.update_zero(self.y == 0);
                 self.pc += 1;
@@ -601,43 +576,31 @@ impl Cpu {
             // LOAD - STA
             //
             opcodes::STA_8D => { // STA $nnnn
-                let addr = self.get_addr();
-                self.memory[addr] = self.a;
+                *self._absolute() = self.a;
                 self.pc += 2;
             }
             opcodes::STA_9D => { // STA $nnnn,X
-                let addr = self.get_addr() + self.x as usize;
-                self.memory[addr] = self.a;
+                *self._absolute_x() = self.a;
                 self.pc += 2;
             }
             opcodes::STA_99 => { // STA $nnnn,Y
-                let addr = self.get_addr() + self.y as usize;
-                self.memory[addr] = self.a;
+                *self._absolute_y() = self.a;
                 self.pc += 2;
             }
             opcodes::STA_85 => { // STA $nn
-                let addr = self.get_addr_zero_page();
-                self.memory[addr] = self.a;
+                *self._zero_page() = self.a;
                 self.pc += 1;
             }
             opcodes::STA_95 => { // STA $nn,X
-                let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
-                self.memory[addr] = self.a;
+                *self._zero_page_x() = self.a;
                 self.pc += 1;
             }
             opcodes::STA_81 => { // STA ($nn,X)
-                let addr = (self.get_addr_zero_page()  + self.x as usize) & 0xff;
-                let hi = (self.memory[(addr+1) & 0xff] as usize) << 8;
-                let addr = hi | self.memory[addr] as usize;
-                self.memory[addr] = self.a;
+                *self._zero_page_x_indirect() = self.a;
                 self.pc += 1;
             }
             opcodes::STA_91 => { // STA ($nn),Y
-                let addr = self.get_addr_zero_page();
-                let hi = (self.memory[(addr + 1) % 0xff] as usize) << 8;
-                let lo = self.memory[addr] as usize;
-                let addr = (hi | lo) + self.y as usize;
-                self.memory[addr] = self.a;
+                *self._zero_page_indirect_y() = self.a;
                 self.pc += 1;
             }
 
@@ -645,18 +608,15 @@ impl Cpu {
             // LOAD - STX
             //
             opcodes::STX_8E => { // STX $nnnn
-                let addr = self.get_addr();
-                self.memory[addr] = self.x;
+                *self._absolute() = self.x;
                 self.pc += 2;
             }
             opcodes::STX_86 => { // STX $nn
-                let addr = self.get_addr_zero_page();
-                self.memory[addr] = self.x;
+                *self._zero_page() = self.x;
                 self.pc += 1;
             }
             opcodes::STX_96 => { // STX $nn,Y
-                let addr = (self.get_addr_zero_page() + self.y as usize) & 0xff;
-                self.memory[addr] = self.x;
+                *self._zero_page_y() = self.x;
                 self.pc += 1;
             }
 
@@ -664,18 +624,15 @@ impl Cpu {
             // LOAD - STY
             //
             opcodes::STY_8C => { // STY $nnnn
-                let addr = self.get_addr();
-                self.memory[addr] = self.y;
+                *self._absolute() = self.y;
                 self.pc += 2;
             }
             opcodes::STY_84 => { // STY $nn
-                let addr = self.get_addr_zero_page();
-                self.memory[addr] = self.y;
+                *self._zero_page() = self.y;
                 self.pc += 1;
             }
             opcodes::STY_94 => { // STY $nn,X
-                let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
-                self.memory[addr] = self.y;
+                *self._zero_page_x() = self.y;
                 self.pc += 1;
             }
 
@@ -690,39 +647,35 @@ impl Cpu {
             // INCREMENT - INC
             //
             opcodes::INC_EE => { // INC $nnnn
-                let addr = self.get_addr();
-                let mut a = self.memory[addr];
+                let mut a = *self._absolute();
                 a = a.wrapping_add(1);
                 self.update_negative(a & 0x80 != 0);
                 self.update_zero(a == 0);
-                self.memory[addr] = a;
+                *self._absolute() = a;
                 self.pc += 2;
             }
             opcodes::INC_FE => { // INC $nnnn,X
-                let addr = self.get_addr() + self.x as usize;
-                let mut a = self.memory[addr];
+                let mut a = *self._absolute_x();
                 a = a.wrapping_add(1);
                 self.update_negative(a & 0x80 != 0);
                 self.update_zero(a == 0);
-                self.memory[addr] = a;
+                *self._absolute_x() = a;
                 self.pc += 2;
             }
             opcodes::INC_E6 => { // INC $nn
-                let addr = self.get_addr_zero_page();
-                let mut a = self.memory[addr];
+                let mut a = *self._zero_page();
                 a = a.wrapping_add(1);
                 self.update_negative(a & 0x80 != 0);
                 self.update_zero(a == 0);
-                self.memory[addr] = a;
+                *self._zero_page() = a;
                 self.pc += 1;
             }
             opcodes::INC_F6 => { // INC $nn,X
-                let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
-                let mut a = self.memory[addr];
+                let mut a = *self._zero_page_x();
                 a = a.wrapping_add(1);
                 self.update_negative(a & 0x80 != 0);
                 self.update_zero(a == 0);
-                self.memory[addr] = a;
+                *self._zero_page_x() = a;
                 self.pc += 1;
             }
 
@@ -776,7 +729,7 @@ impl Cpu {
                 } else {
                     0
                 };
-                let v = self.get_addr_zero_page();
+                let v = self._immediate();
                 let r: u16 = self.a as u16 + v as u16 + c;
                 self.a = r as u8;
                 // TODO: Add overflow flag update
@@ -794,8 +747,7 @@ impl Cpu {
                 } else {
                     0
                 };
-                let addr = self.get_addr();
-                let v = self.memory[addr];
+                let v = *self._absolute();
                 let r: u16 = self.a as u16 + v as u16 + c;
                 self.a = r as u8;
                 // TODO: Add overflow flag update
@@ -813,8 +765,7 @@ impl Cpu {
                 } else {
                     0
                 };
-                let addr = self.get_addr() + self.x as usize;
-                let v = self.memory[addr];
+                let v = *self._absolute_x();
                 let r = self.a as u16 + v as u16 + c;
                 self.a = r as u8;
                 // TODO: Add overflow flag update
@@ -832,8 +783,7 @@ impl Cpu {
                 } else {
                     0
                 };
-                let addr = self.get_addr() + self.y as usize;
-                let v = self.memory[addr];
+                let v = *self._absolute_y();
                 let r: u16 = self.a as u16 + v as u16 + c;
                 self.a = r as u8;
                 // TODO: Add overflow flag update
@@ -851,8 +801,7 @@ impl Cpu {
                 } else {
                     0
                 };
-                let addr = self.get_addr_zero_page();
-                let v = self.memory[addr];
+                let v = *self._zero_page();
                 let r: u16 = self.a as u16 + v as u16 + c;
                 self.a = r as u8;
                 // TODO: Add overflow flag update
@@ -870,8 +819,7 @@ impl Cpu {
                 } else {
                     0
                 };
-                let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
-                let v = self.memory[addr];
+                let v = *self._zero_page_x();
                 let r: u16 = self.a as u16 + v as u16 + c;
                 self.a = r as u8;
                 // TODO: Add overflow flag update
@@ -889,10 +837,7 @@ impl Cpu {
                 } else {
                     0
                 };
-                let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
-                let mut addr2 = (self.memory[(addr+1) & 0xff] as usize) << 8;
-                addr2 += self.memory[addr] as usize;
-                let v = self.memory[addr2];
+                let v = *self._zero_page_x_indirect();
                 let r: u16 = self.a as u16 + v as u16 + c;
                 self.a = r as u8;
                 // TODO: Add overflow flag update
@@ -910,11 +855,7 @@ impl Cpu {
                 } else {
                     0
                 };
-                let addr = self.get_addr_zero_page();
-                let mut addr2 = (self.memory[(addr+1) & 0xff] as usize) << 8;
-                addr2 += self.memory[addr] as usize;
-                addr2 += self.y as usize;
-                let v = self.memory[addr2];
+                let v = *self._zero_page_indirect_y();
                 let r: u16 = self.a as u16 + v as u16 + c;
                 self.a = r as u8;
                 // TODO: Add overflow flag update
@@ -936,7 +877,7 @@ impl Cpu {
                 } else {
                     0
                 };
-                let v = self.get_addr_zero_page();
+                let v = self._immediate();
                 let r: u16 = 0x0100 + self.a as u16 - v as u16 - c;
                 self.a = r as u8;
                 // TODO: Add overflow flag update
@@ -954,8 +895,7 @@ impl Cpu {
                 } else {
                     0
                 };
-                let addr = self.get_addr();
-                let v = self.memory[addr];
+                let v = *self._absolute();
                 let r: u16 = 0x0100 + self.a as u16 - v as u16 - c;
                 self.a = r as u8;
                 // TODO: Add overflow flag update
@@ -973,8 +913,7 @@ impl Cpu {
                 } else {
                     0
                 };
-                let addr = self.get_addr() + self.x as usize;
-                let v = self.memory[addr];
+                let v = *self._absolute_x();
                 let r = 0x0100 + self.a as u16 - v as u16 - c;
                 self.a = r as u8;
                 // TODO: Add overflow flag update
@@ -992,8 +931,7 @@ impl Cpu {
                 } else {
                     0
                 };
-                let addr = self.get_addr() + self.y as usize;
-                let v = self.memory[addr];
+                let v = *self._absolute_y();
                 let r: u16 = 0x0100 + self.a as u16 - v as u16 - c;
                 self.a = r as u8;
                 // TODO: Add overflow flag update
@@ -1011,8 +949,7 @@ impl Cpu {
                 } else {
                     0
                 };
-                let addr = self.get_addr_zero_page();
-                let v = self.memory[addr];
+                let v = *self._zero_page();
                 let r: u16 = 0x0100 + self.a as u16 - v as u16 - c;
                 self.a = r as u8;
                 // TODO: Add overflow flag update
@@ -1030,8 +967,7 @@ impl Cpu {
                 } else {
                     0
                 };
-                let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
-                let v = self.memory[addr];
+                let v = *self._zero_page_x();
                 let r: u16 = 0x0100 + self.a as u16 - v as u16 - c;
                 self.a = r as u8;
                 // TODO: Add overflow flag update
@@ -1049,10 +985,7 @@ impl Cpu {
                 } else {
                     0
                 };
-                let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
-                let mut addr2 = (self.memory[(addr+1) & 0xff] as usize) << 8;
-                addr2 += self.memory[addr] as usize;
-                let v = self.memory[addr2];
+                let v = *self._zero_page_x_indirect();
                 let r: u16 = 0x0100 + self.a as u16 - v as u16 - c;
                 self.a = r as u8;
                 // TODO: Add overflow flag update
@@ -1070,11 +1003,7 @@ impl Cpu {
                 } else {
                     0
                 };
-                let addr = self.get_addr_zero_page();
-                let mut addr2 = (self.memory[(addr+1) & 0xff] as usize) << 8;
-                addr2 += self.memory[addr] as usize;
-                addr2 += self.y as usize;
-                let v = self.memory[addr2];
+                let v = *self._zero_page_indirect_y();
                 let r: u16 = 0x0100 + self.a as u16 - v as u16 - c;
                 self.a = r as u8;
                 // TODO: Add overflow flag update
@@ -1088,76 +1017,64 @@ impl Cpu {
             // ARITH - CMP
             //
             opcodes::CMP_C9 => { // CMP #$nn
-                let m = self.get_addr_zero_page();
-                let r: u16 = (0x0100 + self.a as u16) - m as u16;
+                let v = self._immediate();
+                let r: u16 = (0x0100 + self.a as u16) - v as u16;
                 self.update_negative(r & 0x80 != 0);
                 self.update_zero(r & 0xff == 0);
                 self.update_carry(r & 0x0100 != 0);
                 self.pc += 1;
             }
             opcodes::CMP_CD => { // CMP $nnnn
-                let addr = self.get_addr();
-                let m = self.memory[addr];
-                let r: u16 = (0x0100 + self.a as u16) - m as u16;
+                let v = *self._absolute();
+                let r: u16 = (0x0100 + self.a as u16) - v as u16;
                 self.update_negative(r & 0x80 != 0);
                 self.update_zero(r & 0xff == 0);
                 self.update_carry(r & 0x0100 != 0);
                 self.pc += 2;
             }
             opcodes::CMP_DD => { // CMP $nnnn,X
-                let addr = self.get_addr() + self.x as usize;
-                let m = self.memory[addr];
-                let r: u16 = (0x0100 + self.a as u16) - m as u16;
+                let v = *self._absolute_x();
+                let r: u16 = (0x0100 + self.a as u16) - v as u16;
                 self.update_negative(r & 0x80 != 0);
                 self.update_zero(r & 0xff == 0);
                 self.update_carry(r & 0x0100 != 0);
                 self.pc += 2;
             }
             opcodes::CMP_D9 => { // CMP $nnnn,Y
-                let addr = self.get_addr() + self.y as usize;
-                let m = self.memory[addr];
-                let r: u16 = (0x0100 + self.a as u16) - m as u16;
+                let v = *self._absolute_y();
+                let r: u16 = (0x0100 + self.a as u16) - v as u16;
                 self.update_negative(r & 0x80 != 0);
                 self.update_zero(r & 0xff == 0);
                 self.update_carry(r & 0x0100 != 0);
                 self.pc += 2;
             }
             opcodes::CMP_C5 => { // CMP $nn
-                let addr = self.get_addr_zero_page();
-                let m = self.memory[addr];
-                let r: u16 = (0x0100 + self.a as u16) - m as u16;
+                let v = *self._zero_page();
+                let r: u16 = (0x0100 + self.a as u16) - v as u16;
                 self.update_negative(r & 0x80 != 0);
                 self.update_zero(r & 0xff == 0);
                 self.update_carry(r & 0x0100 != 0);
                 self.pc += 1;
             }
             opcodes::CMP_D5 => { // CMP $nn,X
-                let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
-                let m = self.memory[addr];
-                let r: u16 = (0x0100 + self.a as u16) - m as u16;
+                let v = *self._zero_page_x();
+                let r: u16 = (0x0100 + self.a as u16) - v as u16;
                 self.update_negative(r & 0x80 != 0);
                 self.update_zero(r & 0xff == 0);
                 self.update_carry(r & 0x0100 != 0);
                 self.pc += 1;
             }
             opcodes::CMP_C1 => { // CMP ($nn,X)
-                let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
-                let mut addr2 = (self.memory[(addr+1) & 0xff] as usize) << 8;
-                addr2 += self.memory[addr] as usize;
-                let m = self.memory[addr2];
-                let r: u16 = (0x0100 + self.a as u16) - m as u16;
+                let v = *self._zero_page_x_indirect();
+                let r: u16 = (0x0100 + self.a as u16) - v as u16;
                 self.update_negative(r & 0x80 != 0);
                 self.update_zero(r & 0xff == 0);
                 self.update_carry(r & 0x0100 != 0);
                 self.pc += 1;
             }
             opcodes::CMP_D1 => { // CMP ($nn),Y
-                let addr = self.get_addr_zero_page();
-                let mut addr2 = (self.memory[(addr+1) & 0xff] as usize) << 8;
-                addr2 += self.memory[addr] as usize;
-                addr2 += self.y as usize;
-                let m = self.memory[addr2];
-                let r: u16 = (0x0100 + self.a as u16) - m as u16;
+                let v = *self._zero_page_indirect_y();
+                let r: u16 = (0x0100 + self.a as u16) - v as u16;
                 self.update_negative(r & 0x80 != 0);
                 self.update_zero(r & 0xff == 0);
                 self.update_carry(r & 0x0100 != 0);
@@ -1169,26 +1086,24 @@ impl Cpu {
             //
             // FIXME: 0x30 - 0x40 ? -0x10 ? should the N_Negative flags be set or not?
             opcodes::CPX_E0 => { // CPX #$nn
-                let m = self.get_addr_zero_page();
-                let r: u16 = (0x0100 + self.x as u16) - m as u16;
+                let v = self._immediate();
+                let r: u16 = (0x0100 + self.x as u16) - v as u16;
                 self.update_negative(r & 0x80 != 0);
                 self.update_zero(r & 0xff == 0);
                 self.update_carry(r & 0x0100 != 0);
                 self.pc += 1;
             }
             opcodes::CPX_EC => { // CPX $nnnn
-                let addr = self.get_addr();
-                let m = self.memory[addr];
-                let r: u16 = (0x0100 + self.x as u16) - m as u16;
+                let v = *self._absolute();
+                let r: u16 = (0x0100 + self.x as u16) - v as u16;
                 self.update_negative(r & 0x80 != 0);
                 self.update_zero(r & 0xff == 0);
                 self.update_carry(r & 0x0100 != 0);
                 self.pc += 2;
             }
             opcodes::CPX_E4 => { // CPX $nn
-                let addr = self.get_addr_zero_page();
-                let m = self.memory[addr];
-                let r: u16 = (0x0100 + self.x as u16) - m as u16;
+                let v = *self._zero_page();
+                let r: u16 = (0x0100 + self.x as u16) - v as u16;
                 self.update_negative(r & 0x80 != 0);
                 self.update_zero(r & 0xff == 0);
                 self.update_carry(r & 0x0100 != 0);
@@ -1199,26 +1114,24 @@ impl Cpu {
             // ARITH - CPY
             //
             opcodes::CPY_C0 => { // CPY #$nn
-                let m = self.get_addr_zero_page();
-                let r: u16 = (0x0100 + self.y as u16) - m as u16;
+                let v = self._immediate();
+                let r: u16 = (0x0100 + self.y as u16) - v as u16;
                 self.update_negative(r & 0x80 != 0);
                 self.update_zero(r & 0xff == 0);
                 self.update_carry(r & 0x0100 != 0);
                 self.pc += 1;
             }
             opcodes::CPY_CC => { // CPY $nnnn
-                let addr = self.get_addr();
-                let m = self.memory[addr];
-                let r: u16 = (0x0100 + self.y as u16) - m as u16;
+                let v = *self._absolute();
+                let r: u16 = (0x0100 + self.y as u16) - v as u16;
                 self.update_negative(r & 0x80 != 0);
                 self.update_zero(r & 0xff == 0);
                 self.update_carry(r & 0x0100 != 0);
                 self.pc += 2;
             }
             opcodes::CPY_C4 => { // CPY $nn
-                let addr = self.get_addr_zero_page();
-                let m = self.memory[addr];
-                let r: u16 = (0x0100 + self.y as u16) - m as u16;
+                let v = *self._zero_page();
+                let r: u16 = (0x0100 + self.y as u16) - v as u16;
                 self.update_negative(r & 0x80 != 0);
                 self.update_zero(r & 0xff == 0);
                 self.update_carry(r & 0x0100 != 0);
@@ -1229,43 +1142,35 @@ impl Cpu {
             // INCREMENT - DEC
             //
             opcodes::DEC_CE => { // DEC $nnnn
-                let addr = self.get_addr();
-                println!(".> addr: {addr:04x}");
-                let mut a = self.memory[addr];
-                println!("> a: {a}");
+                let mut a = *self._absolute();
                 a = a.wrapping_sub(1);
-                println!("> a: {a}");
                 self.update_negative(a & 0x80 != 0);
                 self.update_zero(a == 0);
-                self.memory[addr] = a;
-                println!("> mem[{addr:04x}]: {a}");
+                *self._absolute() = a;
                 self.pc += 2;
             }
             opcodes::DEC_DE => { // DEC $nnnn,X
-                let addr = self.get_addr() + self.x as usize;
-                let mut a = self.memory[addr];
+                let mut a = *self._absolute_x();
                 a = a.wrapping_sub(1);
                 self.update_negative(a & 0x80 != 0);
                 self.update_zero(a == 0);
-                self.memory[addr] = a;
+                *self._absolute_x() = a;
                 self.pc += 2;
             }
             opcodes::DEC_C6 => { // DEC $nn
-                let addr = self.get_addr_zero_page();
-                let mut a = self.memory[addr];
+                let mut a = *self._zero_page();
                 a = a.wrapping_sub(1);
                 self.update_negative(a & 0x80 != 0);
                 self.update_zero(a == 0);
-                self.memory[addr] = a;
+                *self._zero_page() = a;
                 self.pc += 1;
             }
             opcodes::DEC_D6 => { // DEC $nn,X
-                let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
-                let mut a = self.memory[addr];
+                let mut a = *self._zero_page_x();
                 a = a.wrapping_sub(1);
                 self.update_negative(a & 0x80 != 0);
                 self.update_zero(a == 0);
-                self.memory[addr] = a;
+                *self._zero_page_x() = a;
                 self.pc += 1;
             }
 
@@ -1533,38 +1438,40 @@ impl Cpu {
             //
             // SHIFT - ASL - Arithmetic Shift Left
             //
-            opcodes::ASL_0A => {
-                // ASL A
+            // TODO: Use `_addressing_mode()` functions here
+            opcodes::ASL_0A => { // ASL A
                 self.a = self._asl_inst(self.a);
             }
-            opcodes::ASL_0E => {
-                // ASL $nnnn
+            opcodes::ASL_0E => { // ASL $nnnn
                 let addr = self.get_addr();
                 self.memory[addr] = self._asl_inst(self.memory[addr]);
+                //let mut addr = self._absolute();
+                //*addr = self._asl_inst(*addr);
                 self.pc += 2;
             }
-            opcodes::ASL_1E => {
-                // ASL $nnnn,X
+            opcodes::ASL_1E => { // ASL $nnnn,X
                 let addr = self.get_addr() + self.x as usize;
                 self.memory[addr] = self._asl_inst(self.memory[addr]);
+                //self._asl_inst(self._absolute_x());
                 self.pc += 2;
             }
-            opcodes::ASL_06 => {
-                // ASL $nn
+            opcodes::ASL_06 => { // ASL $nn
                 let addr = self.get_addr_zero_page();
                 self.memory[addr] = self._asl_inst(self.memory[addr]);
+                //self._asl_inst(self._zero_page());
                 self.pc += 1;
             }
-            opcodes::ASL_16 => {
-                // ASL $nn,X
+            opcodes::ASL_16 => { // ASL $nn,X
                 let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
                 self.memory[addr] = self._asl_inst(self.memory[addr]);
+                //self._asl_inst(self._zero_page_x());
                 self.pc += 1;
             }
 
             //
             // SHIFT - LSR - Logic Shift Right
             //
+            // TODO: Use `_addressing_mode()` functions here
             opcodes::LSR_4A => {
                 // LSR A
                 self.a = self._lsr_inst(self.a);
@@ -1598,6 +1505,7 @@ impl Cpu {
             //
             // SHIFT - ROL - Rotate Left
             //
+            // TODO: Use `_addressing_mode()` functions here
             opcodes::ROL_2A => {
                 // ROL A
                 self.a = self._rol_inst(self.a);
@@ -1630,6 +1538,7 @@ impl Cpu {
             //
             // SHIFT - ROR - Rotate Right
             //
+            // TODO: Use `_addressing_mode()` functions here
             opcodes::ROR_6A => {
                 // ROR A
                 self.a = self._ror_inst(self.a);
@@ -1662,161 +1571,150 @@ impl Cpu {
             //
             // LOGIC - AND
             //
+            // TODO: Try to remove the usage of `v` here (and copy semantics)
             opcodes::AND_29 => { // AND #$nn
-                let nn = self.get_addr_zero_page() as u8;
-                self._and_inst(nn);
+                let v = self._immediate();
+                self._and_inst(v);
                 self.pc += 1;
             }
             opcodes::AND_2D => { // AND $nnnn
-                let addr = self.get_addr();
-                self._and_inst(self.memory[addr]);
+                let v = *self._absolute();
+                self._and_inst(v);
                 self.pc += 2;
             }
             opcodes::AND_3D => { // AND $nnnn,X
-                let addr = self.get_addr() + self.x as usize;
-                self._and_inst(self.memory[addr]);
+                let v = *self._absolute_x();
+                self._and_inst(v);
                 self.pc += 2;
             }
             opcodes::AND_39 => { // AND $nnnn,Y
-                let addr = self.get_addr() + self.y as usize;
-                self._and_inst(self.memory[addr]);
+                let v = *self._absolute_y();
+                self._and_inst(v);
                 self.pc += 2;
             }
             opcodes::AND_25 => { // AND $nn
-                let addr = self.get_addr_zero_page();
-                self._and_inst(self.memory[addr]);
+                let v = *self._zero_page();
+                self._and_inst(v);
                 self.pc += 1;
             }
             opcodes::AND_35 => { // AND $nn,X
-                let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
-                self._and_inst(self.memory[addr]);
+                let v = *self._zero_page_x();
+                self._and_inst(v);
                 self.pc += 1;
             }
             opcodes::AND_21 => { // AND ($nn,X)
-                let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
-                let mut addr2 = (self.memory[(addr + 1) & 0xff] as usize) << 8;
-                addr2 |= self.memory[addr] as usize;
-                self._and_inst(self.memory[addr2]);
+                let v = *self._zero_page_x_indirect();
+                self._and_inst(v);
                 self.pc += 1;
             }
             opcodes::AND_31 => { // AND ($nn),Y
-                let addr = self.get_addr_zero_page();
-                let mut addr2 = (self.memory[(addr + 1) & 0xff] as usize) << 8;
-                addr2 |= self.memory[addr] as usize;
-                addr2 += self.y as usize;
-                self._and_inst(self.memory[addr2]);
+                let v = *self._zero_page_indirect_y();
+                self._and_inst(v);
                 self.pc += 1;
             }
 
             //
             // BIT
             //
+            // TODO: Try to remove the usage of `v` here (and copy semantics)
             opcodes::BIT_2C => { // BIT $nnnn
-                let addr = self.get_addr();
-                self._bit_inst(self.memory[addr]);
+                let v = *self._absolute();
+                self._bit_inst(v);
                 self.pc += 2;
             }
             opcodes::BIT_24 => { // BIT $nn
-                let addr = self.get_addr_zero_page();
-                self._bit_inst(self.memory[addr]);
+                let v = *self._zero_page();
+                self._bit_inst(v);
                 self.pc += 1;
             }
 
             //
             // EOR
             //
+            // TODO: Try to remove the usage of `v` here (and copy semantics)
             opcodes::EOR_49 => { // EOR #$49
-                let nn = self.get_addr_zero_page() as u8;
-                self._eor_inst(nn);
+                let v = self._immediate();
+                self._eor_inst(v);
                 self.pc += 1;
             }
             opcodes::EOR_4D => { // EOR $nnnn
-                let addr = self.get_addr();
-                self._eor_inst(self.memory[addr]);
+                let v = *self._absolute();
+                self._eor_inst(v);
                 self.pc += 2;
             }
             opcodes::EOR_5D => { // EOR $nnnn,X
-                let addr = self.get_addr() + self.x as usize;
-                self._eor_inst(self.memory[addr]);
+                let v = *self._absolute_x();
+                self._eor_inst(v);
                 self.pc += 2;
             }
             opcodes::EOR_59 => { // EOR $nnnn,Y
-                let addr = self.get_addr() + self.y as usize;
-                self._eor_inst(self.memory[addr]);
+                let v = *self._absolute_y();
+                self._eor_inst(v);
                 self.pc += 2;
             }
             opcodes::EOR_45 => { // EOR $nn
-                let addr = self.get_addr_zero_page();
-                self._eor_inst(self.memory[addr]);
+                let v = *self._zero_page();
+                self._eor_inst(v);
                 self.pc += 1;
             }
             opcodes::EOR_55 => { // EOR $nn,X
-                let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
-                self._eor_inst(self.memory[addr]);
+                let v = *self._zero_page_x();
+                self._eor_inst(v);
                 self.pc += 1;
             }
             opcodes::EOR_41 => { // EOR ($nn,X)
-                let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
-                let mut addr2 = (self.memory[(addr + 1) & 0xff] as usize) << 8;
-                addr2 |= self.memory[addr] as usize;
-                self._eor_inst(self.memory[addr2]);
+                let v = *self._zero_page_x_indirect();
+                self._eor_inst(v);
                 self.pc += 1;
             }
             opcodes::EOR_51 => { // EOR ($nn),Y
-                let addr = self.get_addr_zero_page();
-                let mut addr2 = (self.memory[(addr + 1) & 0xff] as usize) << 8;
-                addr2 |= self.memory[addr] as usize;
-                addr2 += self.y as usize;
-                self._eor_inst(self.memory[addr2]);
+                let v = *self._zero_page_indirect_y();
+                self._eor_inst(v);
                 self.pc += 1;
             }
 
             //
             // ORA
             //
+            // TODO: Try to remove the usage of `v` here (and copy semantics)
             opcodes::ORA_09 => { // ORA #$nn
-                let nn = self.get_addr_zero_page() as u8;
-                self._ora_inst(nn);
+                let v = self._immediate();
+                self._ora_inst(v);
                 self.pc += 1;
             }
             opcodes::ORA_0D => { // ORA $nnnn
-                let addr = self.get_addr();
-                self._ora_inst(self.memory[addr]);
+                let v = *self._absolute();
+                self._ora_inst(v);
                 self.pc += 2;
             }
             opcodes::ORA_1D => { // ORA $nnnn,X
-                let addr = self.get_addr() + self.x as usize;
-                self._ora_inst(self.memory[addr]);
+                let v = *self._absolute_x();
+                self._ora_inst(v);
                 self.pc += 2;
             }
             opcodes::ORA_19 => { // ORA $nnnn,Y
-                let addr = self.get_addr() + self.y as usize;
-                self._ora_inst(self.memory[addr]);
+                let v = *self._absolute_y();
+                self._ora_inst(v);
                 self.pc += 2;
             }
             opcodes::ORA_05 => { // ORA $nn
-                let addr = self.get_addr_zero_page();
-                self._ora_inst(self.memory[addr]);
+                let v = *self._zero_page();
+                self._ora_inst(v);
                 self.pc += 1;
             }
             opcodes::ORA_15 => { // ORA $nn,X
-                let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
-                self._ora_inst(self.memory[addr]);
+                let v = *self._zero_page_x();
+                self._ora_inst(v);
                 self.pc += 1;
             }
             opcodes::ORA_01 => { // ORA ($nn,X)
-                let addr = (self.get_addr_zero_page() + self.x as usize) & 0xff;
-                let mut addr2 = (self.memory[(addr + 1) & 0xff] as usize) << 8;
-                addr2 |= self.memory[addr] as usize;
-                self._ora_inst(self.memory[addr2]);
+                let v = *self._zero_page_x_indirect();
+                self._ora_inst(v);
                 self.pc += 1;
             }
             opcodes::ORA_11 => { // ORA ($nn),Y
-                let addr = self.get_addr_zero_page();
-                let mut addr2 = (self.memory[(addr + 1) & 0xff] as usize) << 8;
-                addr2 |= self.memory[addr] as usize;
-                addr2 += self.y as usize;
-                self._ora_inst(self.memory[addr2]);
+                let v = *self._zero_page_indirect_y();
+                self._ora_inst(v);
                 self.pc += 1;
             }
 
