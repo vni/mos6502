@@ -509,7 +509,7 @@ impl Cpu {
                 self.update_zero(self.a == 0);
             }
             opcodes::LDA_B1 => {
-                let mut addr = self.get_addr_zero_page() as usize;
+                let addr = self.get_addr_zero_page() as usize;
 
                 let mut addr2 = (self.memory[addr + 1] as usize) << 8;
                 addr2 += self.memory[addr] as usize + self.y as usize;
@@ -633,7 +633,7 @@ impl Cpu {
                 self.pc += 1;
             }
             opcodes::STA_91 => { // STA ($nn),Y
-                let mut addr = self.get_addr_zero_page();
+                let addr = self.get_addr_zero_page();
                 let hi = (self.memory[(addr + 1) % 0xff] as usize) << 8;
                 let lo = self.memory[addr] as usize;
                 let addr = (hi | lo) + self.y as usize;
