@@ -15,6 +15,8 @@
 // TODO: _inc_inst
 // TODO: tests: make the cpu to start execution from some `org`, not from 0x00.
 //       it will allow to test the zero_page overlap (addresses 0xff and 0x00).
+// TODO: make all memory addressing aux functions return not the reference but address (usize)
+// TODO: add aux function to work with stack (push, push_2b, pop, pop_2b)
 
 const MEM_SZ: usize = 65_536;
 
@@ -30,14 +32,30 @@ pub(crate) struct Cpu {
     memory: [u8; MEM_SZ], // Silly, but currently memory is part of the processor
 }
 
+#[allow(non_snake_case)] // ?? FIXME ??
 mod Flags {
+    #[allow(non_upper_case_globals)]
     pub(crate) const N_Negative: u8 = 0x80;
+
+    #[allow(non_upper_case_globals)]
     pub(crate) const V_Overflow: u8 = 0x40;
+
     // the 0x20 bit is unused
+    //
+    #[allow(dead_code)] // FIXME
+    #[allow(non_upper_case_globals)]
     pub(crate) const B_Break: u8 = 0x10;
+
+    #[allow(non_upper_case_globals)]
     pub(crate) const D_Decimal: u8 = 0x08;
+
+    #[allow(non_upper_case_globals)]
     pub(crate) const I_InterruptDisable: u8 = 0x04;
+
+    #[allow(non_upper_case_globals)]
     pub(crate) const Z_Zero: u8 = 0x02;
+
+    #[allow(non_upper_case_globals)]
     pub(crate) const C_Carry: u8 = 0x01;
 }
 
@@ -235,6 +253,8 @@ mod opcodes {
     pub const NOP_EA: u8 = 0xEA;
 }
 
+// FIXME:
+#[allow(dead_code)]
 impl Cpu {
     fn new() -> Cpu {
         Cpu {
