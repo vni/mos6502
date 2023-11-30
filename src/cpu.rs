@@ -224,11 +224,12 @@ mod opcodes {
     pub const INY_C8: u8 = 0xC8;
 
     // control
-    pub const BRK: u8 = 0x00;
-    pub const JMP: u8 = 0x00;
-    pub const JSR: u8 = 0x00;
-    pub const RTI: u8 = 0x00;
-    pub const RTS: u8 = 0x00;
+    pub const BRK_00: u8 = 0x00;
+    pub const JMP_4C: u8 = 0x4C;
+    pub const JMP_6C: u8 = 0x6C;
+    pub const JSR_20: u8 = 0x20;
+    pub const RTI_40: u8 = 0x40;
+    pub const RTS_60: u8 = 0x60;
 
     // branch
     pub const BCC_90: u8 = 0x90;
@@ -471,6 +472,18 @@ impl Cpu {
     fn _absolute(&mut self) -> &mut u8 {
         let addr = self.get_addr();
         &mut self.memory[addr]
+    }
+
+    fn _absolute_addr(&mut self) -> usize {
+        let addr = self.get_addr();
+        addr
+    }
+
+    fn _absolute_indirect_addr(&mut self) -> usize {
+        let addr = self.get_addr();
+        let mut addr2 = self.memory[addr] as usize;
+        addr2 += (self.memory[addr+1] as usize) << 8;
+        addr2
     }
 
     fn _absolute_x(&mut self) -> &mut u8 {
@@ -1420,6 +1433,57 @@ impl Cpu {
                 self.s += 1;
                 self.p = self.memory[0x100 + self.s as usize];
             }
+
+            //
+            // CONTROL
+            //
+            opcodes::BRK_00 => {
+                unimplemented!();
+            }
+            opcodes::JMP_4C => { // JMP $nnnn
+                let addr = self._absolute_addr();
+                self.pc = addr as u16;
+            }
+            opcodes::JMP_6C => { // JMP ($nnnn)
+                let addr = self._absolute_indirect_addr();
+                self.pc = addr as u16;
+            }
+            opcodes::JSR_20 => { // JSR $nnnn
+                // store program counter on stack
+                let pc = self.pc + 1; // +1 -> the last byte of this 3byte instruction. TODO: pay attention
+                self.memory[0x0100 + self.s as usize] = (pc >> 8) as u8;
+                self.s -= 1;
+                self.memory[0x0100 + self.s as usize] = pc as u8;
+                self.s -= 1;
+
+                // load new program counter
+                self.pc = self._absolute_addr() as u16;
+            }
+            opcodes::RTI_40 => {
+                // restore status flags
+                self.p = self.memory[0x0100 + self.s as usize];
+                self.s += 1;
+
+                // restore pc: low byte
+                self.pc = self.memory[0x0100 + self.s as usize] as u16;
+                self.s += 1;
+                // restore pc: high byte
+                self.pc |= (self.memory[0x0100 + self.s as usize] as u16) << 8;
+                self.s += 1;
+
+                self.pc = pc + 1;
+            }
+            opcodes::RTS_60 => {
+                // low byte
+                self.pc = self.memory[0x0100 + self.s as usize] as u16;
+                self.s += 1;
+                // high byte
+                self.pc |= (self.memory[0x0100 + self.s as usize] as u16) << 8;
+                self.s += 1;
+
+                self.pc = pc + 1;
+            }
+
 
             //
             // BRANCH - BCC - Branch Carry Clear
