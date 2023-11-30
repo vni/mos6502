@@ -13,6 +13,8 @@
 // TODO: update tests for AND, ORA, EOR to have common code for different addressing modes
 // TODO: Crossing page boundary (page zero addressing) ? What does it mean ?
 // TODO: _inc_inst
+// TODO: tests: make the cpu to start execution from some `org`, not from 0x00.
+//       it will allow to test the zero_page overlap (addresses 0xff and 0x00).
 
 const MEM_SZ: usize = 65_536;
 
@@ -246,6 +248,58 @@ impl Cpu {
             memory: [0; MEM_SZ],
         }
     }
+
+    fn _dump_memory(&self) {
+        fn print_line(l: &[u8]) {
+            for i in 0..l.len() {
+                let v = l[i];
+                if v != 0 {
+                    print!("\x1b[31;1m");
+                }
+                print!(" {:02x}", v);
+                if v != 0 {
+                    print!("\x1b[0m");
+                }
+                if (i+1) % 8 == 0 {
+                    print!("   ");
+                }
+            }
+        }
+
+        const LINE_SIZE: usize = 16;
+        let mut is_all_zero: bool = false;
+        let mut printed: bool = false;
+
+        let mut addr = 0usize;
+        while addr < MEM_SZ {
+            if !is_all_zero && &self.memory[addr .. addr + LINE_SIZE] == &[0u8; LINE_SIZE] {
+                is_all_zero = true;
+            } else if is_all_zero &&
+                !printed &&
+                &self.memory[addr .. addr + LINE_SIZE] == &[0u8; LINE_SIZE]
+            {
+                println!("        ...");
+                printed = true;
+                addr += LINE_SIZE;
+                continue;
+            } else if &self.memory[addr .. addr + LINE_SIZE] != &[0u8; LINE_SIZE] {
+                is_all_zero = false;
+                printed = false;
+            } else if printed {
+                addr += LINE_SIZE;
+                continue;
+            }
+
+            print!("0x{addr:04x}:");
+            print_line(&self.memory[addr .. addr + LINE_SIZE]);
+            println!();
+            addr += LINE_SIZE;
+        }
+    }
+
+    //
+    // FLAGS
+    //
 
     fn is_carry(&self) -> bool {
         self.p & Flags::C_Carry != 0
