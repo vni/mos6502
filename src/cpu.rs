@@ -4212,6 +4212,87 @@ mod tests {
     }
 
     //
+    // CONTROL
+    //
+    #[test]
+    fn test_jmp_4c() { // JMP $nnnn
+        let mut cpu = Cpu::new();
+        let mem = &[JMP_4C, 0x99, 0x70];
+
+        cpu.patch_memory(0, mem);
+        cpu.step();
+
+        assert!(cpu.pc == 0x7099);
+    }
+
+    #[test]
+    fn test_jmp_6c() { // JMP ($nnnn)
+        let mut cpu = Cpu::new();
+        let mem = &[JMP_6C, 0x00, 0x40];
+        let mem2 = &[0x99, 0x70];
+
+        cpu.patch_memory(0, mem);
+        cpu.patch_memory(0x4000, mem2);
+        cpu.step();
+
+        assert!(cpu.pc == 0x7099);
+    }
+
+    #[test]
+    fn test_jsr_20() { // JSR $nnnn
+        let mut cpu = Cpu::new();
+        let mem = &[JSR_20, 0x00, 0x80];
+
+        cpu.patch_memory(0, mem);
+        cpu.step();
+
+        assert!(cpu.pc == 0x8000);
+        assert!(cpu.s == (0xff - 2));
+        assert!(cpu.memory[0x0100 + cpu.s as usize + 1] == 0x02); // JSR $8000 is at addr 0x0000,
+        assert!(cpu.memory[0x0100 + cpu.s as usize + 2] == 0x00); // last byte of this instruction
+                                                                  // is at 0x02;
+    }
+
+    #[test]
+    fn test_rts_60() { // RTS
+        let mut cpu = Cpu::new();
+        let mem_0x0000 = &[JSR_20, 0x00, 0x80,
+                           TAY_A8,
+        ];
+        let mem_0x8000 = &[LDA_A9, 100,
+                           ADC_69, 20,
+                           RTS_60
+        ];
+
+        cpu.patch_memory(0, mem_0x0000);
+        cpu.patch_memory(0x8000, mem_0x8000);
+        cpu.step(); // JSR
+
+        assert!(cpu.pc == 0x8000);
+        assert!(cpu.s == (0xff - 2));
+        assert!(cpu.memory[0x0100 + cpu.s as usize + 1] == 0x02);
+        assert!(cpu.memory[0x0100 + cpu.s as usize + 2] == 0x00);
+
+        cpu.step(); // LDA
+        assert!(cpu.a == 100);
+
+        cpu.step(); // ADC
+        assert!(cpu.a == 120);
+
+        cpu._dump_memory();
+        println!(".1 cpu.pc: 0x{:04x}", cpu.pc);
+        println!(".1 cpu.s: 0x{:02x}", cpu.s);
+        cpu.step(); // RTS
+        println!(".2 cpu.pc: 0x{:04x}", cpu.pc);
+        println!(".2 cpu.s: 0x{:02x}", cpu.s);
+        assert!(cpu.pc == 0x03);
+        assert!(cpu.s == 0xff);
+
+        cpu.step(); // TAY
+        assert!(cpu.y == 120);
+    }
+
+    //
     // BRANCH
     //
     #[test]
