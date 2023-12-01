@@ -1,5 +1,6 @@
 // https://www.pagetable.com/c64ref/6502/?tab=2
 // http://www.emulator101.com/6502-addressing-modes.html
+// https://web.archive.org/web/20221112230813if_/http://archive.6502.org/books/mcs6500_family_programming_manual.pdf
 
 // TODO: Make Cpu reference to memory, not owning it
 //       (it may speed up tests a little bit)
@@ -17,6 +18,8 @@
 //       it will allow to test the zero_page overlap (addresses 0xff and 0x00).
 // TODO: make all memory addressing aux functions return not the reference but address (usize)
 // TODO: add aux function to work with stack (push, push_2b, pop, pop_2b)
+// TODO: add tests for CONTROL instructions
+// TODO: run test roms for 6502
 
 const MEM_SZ: usize = 65_536;
 
