@@ -1471,17 +1471,17 @@ impl Cpu {
                 self.pc |= (self.memory[0x0100 + self.s as usize] as u16) << 8;
                 self.s += 1;
 
-                self.pc = pc + 1;
+                self.pc += 1;
             }
             opcodes::RTS_60 => {
                 // low byte
+                self.s += 1;
                 self.pc = self.memory[0x0100 + self.s as usize] as u16;
-                self.s += 1;
                 // high byte
-                self.pc |= (self.memory[0x0100 + self.s as usize] as u16) << 8;
                 self.s += 1;
+                self.pc |= (self.memory[0x0100 + self.s as usize] as u16) << 8;
 
-                self.pc = pc + 1;
+                self.pc += 1;
             }
 
 
