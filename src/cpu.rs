@@ -1,25 +1,29 @@
-// https://www.pagetable.com/c64ref/6502/?tab=2
-// http://www.emulator101.com/6502-addressing-modes.html
-// https://web.archive.org/web/20221112230813if_/http://archive.6502.org/books/mcs6500_family_programming_manual.pdf
+/** USEFUL LINKS
+    https://www.pagetable.com/c64ref/6502/?tab=2
+    http://www.emulator101.com/6502-addressing-modes.html
+    https://web.archive.org/web/20221112230813if_/http://archive.6502.org/books/mcs6500_family_programming_manual.pdf
+*/
 
-// TODO: Make Cpu reference to memory, not owning it
-//       (it may speed up tests a little bit)
+/** TODO
+    - make Cpu reference to memory, not owning it
+      (it may speed up tests a little bit)
+    - make all the tests look the same: all have some _t function
+      All have ready memory, no memory modification during tests,
+      no pre-calculated addresses passed to test
+    - add separate functions for different addressing modes
+    - use update_*() all over the code
+    - update tests for AND, ORA, EOR to have common code for different addressing modes
+    - crossing page boundary (page zero addressing) ? What does it mean ?
+    - tests: make the cpu to start execution from some `org`, not from 0x00.
+      it will allow to test the zero_page overlap (addresses 0xff and 0x00).
+    - make all memory addressing aux functions return not the reference but address (usize)
+    - add aux function to work with stack (push, push_2b, pop, pop_2b)
+    - add tests for CONTROL instructions
+    - run test roms for 6502
+    - in all the instructions add table of correspondance of addressing mode and pc increment
+    - move cpu.pc update from instructions::functions() to step()
+ */
 
-// TODO: Make all the tests look the same: all have some _t function
-//       All have ready memory, no memory modification during tests,
-//          no pre-calculated addresses passed to test
-
-// TODO: Add separate functions for different addressing modes
-// TODO: use update_*() all over the code
-// TODO: update tests for AND, ORA, EOR to have common code for different addressing modes
-// TODO: Crossing page boundary (page zero addressing) ? What does it mean ?
-// TODO: _inc_inst
-// TODO: tests: make the cpu to start execution from some `org`, not from 0x00.
-//       it will allow to test the zero_page overlap (addresses 0xff and 0x00).
-// TODO: make all memory addressing aux functions return not the reference but address (usize)
-// TODO: add aux function to work with stack (push, push_2b, pop, pop_2b)
-// TODO: add tests for CONTROL instructions
-// TODO: run test roms for 6502
 
 const MEM_SZ: usize = 65_536;
 
