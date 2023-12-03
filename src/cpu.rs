@@ -22,13 +22,14 @@
     - run test roms for 6502
     - in all the instructions add table of correspondance of addressing mode and pc increment
     - move cpu.pc update from instructions::functions() to step()
+    - unify addressing instructions to return the usize offset in cpu.memory instead of a reference
  */
 
 
 const MEM_SZ: usize = 65_536;
 
 #[derive(Debug, PartialEq)]
-pub(crate) struct Cpu {
+pub struct Cpu {
     a: u8,   // accumulator
     x: u8,   // x index register
     y: u8,   // y index register
@@ -64,6 +65,24 @@ mod Flags {
 
     #[allow(non_upper_case_globals)]
     pub(crate) const C_Carry: u8 = 0x01;
+}
+
+#[allow(dead_code)] // FIXME: remove this directive
+#[derive(PartialEq)]
+pub enum AddressingMode {
+    Implied,
+    Accumulator,
+    Immediate,
+    Absolute,
+    AbsoluteX,
+    AbsoluteY,
+    AbsoluteIndirect,
+    ZeroPage,
+    ZeroPageX,
+    ZeroPageY,
+    ZeroPageXIndirect,
+    ZeroPageIndirectY,
+    Relative, // ???
 }
 
 // FIXME: remove this
@@ -261,6 +280,886 @@ mod opcodes {
     pub const NOP_EA: u8 = 0xEA;
 }
 
+fn addressing_mode_pc_advance(mode: AddressingMode) -> u16 {
+    // FIXME: change it to indexable table
+    match mode {
+        AddressingMode::Implied => 0,
+        AddressingMode::Accumulator => 0,
+        AddressingMode::Immediate => 1,
+        AddressingMode::Absolute => 2,
+        AddressingMode::AbsoluteX => 2,
+        AddressingMode::AbsoluteY => 2,
+        AddressingMode::AbsoluteIndirect => 2,
+        AddressingMode::ZeroPage => 1,
+        AddressingMode::ZeroPageX => 1,
+        AddressingMode::ZeroPageY => 1,
+        AddressingMode::ZeroPageXIndirect => 1,
+        AddressingMode::ZeroPageIndirectY => 1,
+        AddressingMode::Relative => todo!(),
+    }
+}
+
+//
+// instructions
+//
+mod instructions {
+    use super::*;
+
+    //
+    // load
+    //
+    pub fn lda(cpu: &mut Cpu, mode: AddressingMode) {
+        match mode {
+            AddressingMode::Immediate => cpu.a = cpu.memory[cpu._immediate()],
+            AddressingMode::Absolute => cpu.a = cpu.memory[cpu._absolute()],
+            AddressingMode::AbsoluteX => cpu.a = cpu.memory[cpu._absolute_x()],
+            AddressingMode::AbsoluteY => cpu.a = cpu.memory[cpu._absolute_y()],
+            AddressingMode::ZeroPage => cpu.a = cpu.memory[cpu._zero_page()],
+            AddressingMode::ZeroPageX => cpu.a = cpu.memory[cpu._zero_page_x()],
+            AddressingMode::ZeroPageXIndirect => cpu.a = cpu.memory[cpu._zero_page_x_indirect()],
+            AddressingMode::ZeroPageIndirectY => cpu.a = cpu.memory[cpu._zero_page_indirect_y()],
+            _ => unimplemented!("bad addressing mode for the LDA instruction"),
+        }
+
+        cpu.update_negative(cpu.a & 0x80 != 0);
+        cpu.update_zero(cpu.a == 0);
+
+        cpu.pc += addressing_mode_pc_advance(mode);
+    }
+
+    pub fn ldx(cpu: &mut Cpu, mode: AddressingMode) {
+        match mode {
+            AddressingMode::Immediate => cpu.x = cpu.memory[cpu._immediate()],
+            AddressingMode::Absolute => cpu.x = cpu.memory[cpu._absolute()],
+            AddressingMode::AbsoluteY => cpu.x = cpu.memory[cpu._absolute_y()],
+            AddressingMode::ZeroPage => cpu.x = cpu.memory[cpu._zero_page()],
+            AddressingMode::ZeroPageY => cpu.x = cpu.memory[cpu._zero_page_y()],
+            _ => unimplemented!("bad addressing mode for the LDX instruction"),
+        }
+
+        cpu.update_negative(cpu.x & 0x80 != 0);
+        cpu.update_zero(cpu.x == 0);
+
+        cpu.pc += addressing_mode_pc_advance(mode);
+    }
+
+    pub fn ldy(cpu: &mut Cpu, mode: AddressingMode) {
+        match mode {
+            AddressingMode::Immediate => cpu.y = cpu.memory[cpu._immediate()],
+            AddressingMode::Absolute => cpu.y = cpu.memory[cpu._absolute()],
+            AddressingMode::AbsoluteX => cpu.y = cpu.memory[cpu._absolute_x()],
+            AddressingMode::ZeroPage => cpu.y = cpu.memory[cpu._zero_page()],
+            AddressingMode::ZeroPageX => cpu.y = cpu.memory[cpu._zero_page_x()],
+            _ => unimplemented!("bad addressing mode for the LDY instruction"),
+        }
+
+        cpu.update_negative(cpu.y & 0x80 != 0);
+        cpu.update_zero(cpu.y == 0);
+
+        cpu.pc += addressing_mode_pc_advance(mode);
+    }
+
+    pub fn sta(cpu: &mut Cpu, mode: AddressingMode) {
+        match mode {
+            AddressingMode::Absolute => cpu.memory[cpu._absolute()] = cpu.a,
+            AddressingMode::AbsoluteX => cpu.memory[cpu._absolute_x()] = cpu.a,
+            AddressingMode::AbsoluteY => cpu.memory[cpu._absolute_y()] = cpu.a,
+            AddressingMode::ZeroPage => cpu.memory[cpu._zero_page()] = cpu.a,
+            AddressingMode::ZeroPageX => cpu.memory[cpu._zero_page_x()] = cpu.a,
+            AddressingMode::ZeroPageXIndirect => cpu.memory[cpu._zero_page_x_indirect()] = cpu.a,
+            AddressingMode::ZeroPageIndirectY => cpu.memory[cpu._zero_page_indirect_y()] = cpu.a,
+            _ => unimplemented!("bad addressing mode for the STX instruction"),
+        }
+
+        cpu.pc += addressing_mode_pc_advance(mode);
+    }
+
+    pub fn stx(cpu: &mut Cpu, mode: AddressingMode) {
+        match mode {
+            AddressingMode::Absolute => cpu.memory[cpu._absolute()] = cpu.x,
+            AddressingMode::ZeroPage => cpu.memory[cpu._zero_page()] = cpu.x,
+            AddressingMode::ZeroPageY => cpu.memory[cpu._zero_page_y()] = cpu.x,
+            _ => unimplemented!("bad addressing mode for the STX instruction"),
+        }
+
+        cpu.pc += addressing_mode_pc_advance(mode);
+    }
+
+    pub fn sty(cpu: &mut Cpu, mode: AddressingMode) {
+        match mode {
+            AddressingMode::Absolute => cpu.memory[cpu._absolute()] = cpu.y,
+            AddressingMode::ZeroPage => cpu.memory[cpu._zero_page()] = cpu.y,
+            AddressingMode::ZeroPageX => cpu.memory[cpu._zero_page_x()] = cpu.y,
+            _ => unimplemented!("bad addressing mode for the STY instruction"),
+        }
+
+        cpu.pc += addressing_mode_pc_advance(mode);
+    }
+
+    //
+    // trans
+    //
+    pub fn tax(cpu: &mut Cpu, mode: AddressingMode) {
+        match mode {
+            AddressingMode::Implied => cpu.x = cpu.a,
+            _ => unimplemented!("bad addressing mode for the TAX instruction"),
+        }
+
+        cpu.update_negative(cpu.x & 0x80 != 0);
+        cpu.update_zero(cpu.x == 0);
+
+        cpu.pc += addressing_mode_pc_advance(mode); // UNNECESSARY: SHOULD ALWAIS BE 0
+    }
+
+    pub fn tay(cpu: &mut Cpu, mode: AddressingMode) {
+        match mode {
+            AddressingMode::Implied => cpu.y = cpu.a,
+            _ => unimplemented!("bad addressing mode for the TAY instruction"),
+        }
+
+        cpu.update_negative(cpu.y & 0x80 != 0);
+        cpu.update_zero(cpu.y == 0);
+
+        cpu.pc += addressing_mode_pc_advance(mode); // UNNECESSARY: SHOULD ALWAIS BE 0
+    }
+
+    pub fn tsx(cpu: &mut Cpu, mode: AddressingMode) {
+        match mode {
+            AddressingMode::Implied => cpu.x = cpu.s,
+            _ => unimplemented!("bad addressing mode for the TSX instruction"),
+        }
+
+        cpu.update_negative(cpu.x & 0x80 != 0);
+        cpu.update_zero(cpu.x == 0);
+
+        cpu.pc += addressing_mode_pc_advance(mode); // UNNECESSARY: SHOULD ALWAIS BE 0
+    }
+
+    pub fn txa(cpu: &mut Cpu, mode: AddressingMode) {
+        match mode {
+            AddressingMode::Implied => cpu.a = cpu.x,
+            _ => unimplemented!("bad addressing mode for the TXA instruction"),
+        }
+
+        cpu.update_negative(cpu.a & 0x80 != 0);
+        cpu.update_zero(cpu.a == 0);
+
+        cpu.pc += addressing_mode_pc_advance(mode); // UNNECESSARY: SHOULD ALWAIS BE 0
+    }
+
+    pub fn txs(cpu: &mut Cpu, mode: AddressingMode) {
+        match mode {
+            AddressingMode::Implied => cpu.s = cpu.x,
+            _ => unimplemented!("bad addressing mode for the TXS instruction"),
+        }
+
+        cpu.pc += addressing_mode_pc_advance(mode); // UNNECESSARY: SHOULD ALWAIS BE 0
+    }
+
+    pub fn tya(cpu: &mut Cpu, mode: AddressingMode) {
+        match mode {
+            AddressingMode::Implied => cpu.a = cpu.y,
+            _ => unimplemented!("bad addressing mode for the TYA instruction"),
+        }
+
+        cpu.update_negative(cpu.a & 0x80 != 0);
+        cpu.update_zero(cpu.a == 0);
+
+        cpu.pc += addressing_mode_pc_advance(mode); // UNNECESSARY: SHOULD ALWAIS BE 0
+    }
+
+    //
+    // stack
+    //
+    pub fn pha(cpu: &mut Cpu, mode: AddressingMode) {
+        match mode {
+            AddressingMode::Implied => {
+                cpu.memory[0x100 + cpu.s as usize] = cpu.a;
+                cpu.s -= 1;
+            }
+            _ => unimplemented!("bad addressing mode for the PHA instruction"),
+        }
+
+        cpu.pc += addressing_mode_pc_advance(mode); // UNNECESSARY: SHOULD ALWAIS BE 0
+    }
+
+    pub fn php(cpu: &mut Cpu, mode: AddressingMode) {
+        match mode {
+            AddressingMode::Implied => {
+                cpu.memory[0x100 + cpu.s as usize] = cpu.p;
+                cpu.s -= 1;
+            }
+            _ => unimplemented!("bad addressing mode for the PHP instruction"),
+        }
+
+        cpu.pc += addressing_mode_pc_advance(mode); // UNNECESSARY: SHOULD ALWAIS BE 0
+    }
+
+    pub fn pla(cpu: &mut Cpu, mode: AddressingMode) {
+        match mode {
+            AddressingMode::Implied => {
+                cpu.s += 1;
+                cpu.a = cpu.memory[0x100 + cpu.s as usize];
+            }
+            _ => unimplemented!("bad addressing mode for the PLA instruction"),
+        }
+
+        // FIXME: do this flags update is really needed here?
+        cpu.update_negative(cpu.a & 0x80 != 0);
+        cpu.update_zero(cpu.a == 0);
+
+        cpu.pc += addressing_mode_pc_advance(mode); // UNNECESSARY: SHOULD ALWAIS BE 0
+    }
+
+    pub fn plp(cpu: &mut Cpu, mode: AddressingMode) {
+        match mode {
+            AddressingMode::Implied => {
+                cpu.s += 1;
+                cpu.p = cpu.memory[0x100 + cpu.s as usize];
+            }
+            _ => unimplemented!("bad addressing mode for the PLP instruction"),
+        }
+
+        cpu.pc += addressing_mode_pc_advance(mode); // UNNECESSARY: SHOULD ALWAIS BE 0
+    }
+
+    //
+    // shift
+    //
+    pub fn asl(cpu: &mut Cpu, mode: AddressingMode) {
+        fn _asl(cpu: &mut Cpu, mut val: u8) -> u8 {
+            cpu.update_carry(val & 0x80 != 0);
+            val <<= 1;
+            cpu.update_negative(val & 0x80 != 0);
+            cpu.update_zero(val == 0);
+            val
+        }
+
+        if mode == AddressingMode::Accumulator {
+                cpu.a = _asl(cpu, cpu.a);
+        } else {
+            let addr = match mode {
+                AddressingMode::Absolute => cpu._absolute(),
+                AddressingMode::AbsoluteX => cpu._absolute_x(),
+                AddressingMode::ZeroPage => cpu._zero_page(),
+                AddressingMode::ZeroPageX => cpu._zero_page_x(),
+                _ => unimplemented!("bad addressing mode for the ASL instruction"),
+            };
+
+            cpu.memory[addr] = _asl(cpu, cpu.memory[addr]);
+        }
+
+        cpu.pc += addressing_mode_pc_advance(mode);
+    }
+
+    // SHIFT - LSR - Logic Shift Right
+    pub fn lsr(cpu: &mut Cpu, mode: AddressingMode) {
+        fn _lsr(cpu: &mut Cpu, mut val: u8) -> u8 {
+            cpu.update_carry(val & 1 != 0);
+            val >>= 1;
+            cpu.update_negative(false);
+            cpu.update_zero(val == 0);
+            val
+        }
+
+        if mode == AddressingMode::Accumulator { // LSR A
+                cpu.a = _lsr(cpu, cpu.a);
+        } else {
+            let addr = match mode {
+                AddressingMode::Absolute => cpu._absolute(), // LSR $nnnn
+                AddressingMode::AbsoluteX => cpu._absolute_x(), // LSR $nnnn,X
+                AddressingMode::ZeroPage => cpu._zero_page(), // LSR $nn
+                AddressingMode::ZeroPageX => cpu._zero_page_x(), // LSR $nn,X
+                _ => unimplemented!("bad addressing mode for the LSR instruction"),
+            };
+
+            cpu.memory[addr] = _lsr(cpu, cpu.memory[addr]);
+        }
+
+        cpu.pc += addressing_mode_pc_advance(mode);
+    }
+
+    // SHIFT - ROL - Rotate Left
+    pub fn rol(cpu: &mut Cpu, mode: AddressingMode) {
+        fn _rol(cpu: &mut Cpu, mut val: u8) -> u8 {
+            let prev_carry = cpu.is_carry();
+            cpu.update_carry(val & 0x80 != 0);
+            val <<= 1;
+            if prev_carry {
+                val |= 1;
+            }
+            cpu.update_negative(val & 0x80 != 0);
+            cpu.update_zero(val == 0);
+            val
+        }
+
+        if mode == AddressingMode::Accumulator { // ROL A
+                cpu.a = _rol(cpu, cpu.a);
+        } else {
+            let addr = match mode {
+                AddressingMode::Absolute => cpu._absolute(), // ROL $nnnn
+                AddressingMode::AbsoluteX => cpu._absolute_x(), // ROL $nnnn,X
+                AddressingMode::ZeroPage => cpu._zero_page(), // ROL $nn
+                AddressingMode::ZeroPageX => cpu._zero_page_x(), // ROL $nn,X
+                _ => unimplemented!("bad addressing mode for the ROL instruction"),
+            };
+
+            cpu.memory[addr] = _rol(cpu, cpu.memory[addr]);
+        }
+
+        cpu.pc += addressing_mode_pc_advance(mode);
+    }
+
+    // SHIFT - ROR - Rotate Right
+    pub fn ror(cpu: &mut Cpu, mode: AddressingMode) {
+        fn _ror(cpu: &mut Cpu, mut val: u8) -> u8 {
+            let prev_carry = cpu.is_carry();
+            cpu.update_carry(val & 1 != 0);
+            val >>= 1;
+            if prev_carry {
+                val |= 0x80;
+            }
+            cpu.update_negative(val & 0x80 != 0);
+            cpu.update_zero(val == 0);
+            val
+        }
+
+        if mode == AddressingMode::Accumulator { // ROR A
+                cpu.a = _ror(cpu, cpu.a);
+        } else {
+            let addr = match mode {
+                AddressingMode::Absolute => cpu._absolute(), // ROR $nnnn
+                AddressingMode::AbsoluteX => cpu._absolute_x(), // ROR $nnnn,X
+                AddressingMode::ZeroPage => cpu._zero_page(), // ROR $nn
+                AddressingMode::ZeroPageX => cpu._zero_page_x(), // ROR $nn,X
+                _ => unimplemented!("bad addressing mode for the ROR instruction"),
+            };
+
+            cpu.memory[addr] = _ror(cpu, cpu.memory[addr]);
+        }
+
+        cpu.pc += addressing_mode_pc_advance(mode);
+    }
+
+    //
+    // logic
+    //
+    // LOGIC - AND
+    pub fn and(cpu: &mut Cpu, mode: AddressingMode) {
+        fn _and(cpu: &mut Cpu, val: u8) {
+            cpu.a &= val;
+            cpu.update_zero(cpu.a == 0);
+            cpu.update_negative(cpu.a & 0x80 != 0);
+        }
+
+        let addr = match mode {
+            AddressingMode::Immediate => cpu._immediate(), // AND #$nn
+            AddressingMode::Absolute => cpu._absolute(), // AND $nnnn
+            AddressingMode::AbsoluteX => cpu._absolute_x(), // AND $nnnn,X
+            AddressingMode::AbsoluteY => cpu._absolute_y(), // AND $nnnn,Y
+            AddressingMode::ZeroPage => cpu._zero_page(), // AND $nn
+            AddressingMode::ZeroPageX => cpu._zero_page_x(), // AND $nn,X
+            AddressingMode::ZeroPageXIndirect => cpu._zero_page_x_indirect(), // AND ($nn,X)
+            AddressingMode::ZeroPageIndirectY => cpu._zero_page_indirect_y(), // AND ($nn),Y
+            _ => unimplemented!("bad addressing mode for the AND instruction"),
+        };
+
+        _and(cpu, cpu.memory[addr]);
+        cpu.pc += addressing_mode_pc_advance(mode);
+    }
+
+    // LOGIC - BIT - Test Bits in Memory with Accumulator
+    pub fn bit(cpu: &mut Cpu, mode: AddressingMode) {
+        fn _bit(cpu: &mut Cpu, val: u8) {
+            let r = cpu.a & val;
+            cpu.update_zero(r == 0);
+            cpu.update_overflow(r & 0x40 != 0);
+            cpu.update_negative(r & 0x80 != 0);
+        }
+
+        let addr = match mode {
+            AddressingMode::Absolute => cpu._absolute(), // BIT $nnnn
+            AddressingMode::ZeroPage => cpu._zero_page(), // BIT $nn
+            _ => unimplemented!("bad addressing mode for the BIT instruction"),
+        };
+
+        _bit(cpu, cpu.memory[addr]);
+        cpu.pc += addressing_mode_pc_advance(mode);
+    }
+
+    // LOGIC - EOR - Test Bits in Memory with Accumulator
+    pub fn eor(cpu: &mut Cpu, mode: AddressingMode) {
+        fn _eor(cpu: &mut Cpu, val: u8) {
+            cpu.a ^= val;
+            cpu.update_zero(cpu.a == 0);
+            cpu.update_negative(cpu.a & 0x80 != 0);
+        }
+
+        let addr = match mode {
+            AddressingMode::Immediate => cpu._immediate(), // EOR #$nn
+            AddressingMode::Absolute => cpu._absolute(), // EOR $nnnn
+            AddressingMode::AbsoluteX => cpu._absolute_x(), // EOR $nnnn,X
+            AddressingMode::AbsoluteY => cpu._absolute_y(), // EOR $nnnn,Y
+            AddressingMode::ZeroPage => cpu._zero_page(), // EOR $nn
+            AddressingMode::ZeroPageX => cpu._zero_page_x(), // EOR $nn,X
+            AddressingMode::ZeroPageXIndirect => cpu._zero_page_x_indirect(), // EOR ($nn,X)
+            AddressingMode::ZeroPageIndirectY => cpu._zero_page_indirect_y(), // EOR ($nn),Y
+            _ => unimplemented!("bad addressing mode for the EOR instruction"),
+        };
+
+        _eor(cpu, cpu.memory[addr]);
+        cpu.pc += addressing_mode_pc_advance(mode);
+    }
+
+    // LOGIC - ORA - "Exclusive OR" Memory with Accumulator
+    pub fn ora(cpu: &mut Cpu, mode: AddressingMode) {
+        fn _ora(cpu: &mut Cpu, val: u8) {
+            cpu.a |= val;
+            cpu.update_zero(cpu.a == 0);
+            cpu.update_negative(cpu.a & 0x80 != 0);
+        }
+
+        let addr = match mode {
+            AddressingMode::Immediate => cpu._immediate(), // ORA #$nn
+            AddressingMode::Absolute => cpu._absolute(), // ORA $nnnn
+            AddressingMode::AbsoluteX => cpu._absolute_x(), // ORA $nnnn,X
+            AddressingMode::AbsoluteY => cpu._absolute_y(), // ORA $nnnn,Y
+            AddressingMode::ZeroPage => cpu._zero_page(), // ORA $nn
+            AddressingMode::ZeroPageX => cpu._zero_page_x(), // ORA $nn,X
+            AddressingMode::ZeroPageXIndirect => cpu._zero_page_x_indirect(), // ORA ($nn,X)
+            AddressingMode::ZeroPageIndirectY => cpu._zero_page_indirect_y(), // ORA ($nn),Y
+            _ => unimplemented!("bad addressing mode for the ORA instruction"),
+        };
+
+        _ora(cpu, cpu.memory[addr]);
+        cpu.pc += addressing_mode_pc_advance(mode);
+    }
+
+    //
+    // arith
+    //
+    // ARITH - ADC - Add Memory to Accumulator with Carry
+    pub fn adc(cpu: &mut Cpu, mode: AddressingMode) {
+        if cpu.is_decimal() {
+            unimplemented!();
+        }
+
+        let addr = match mode {
+            AddressingMode::Immediate => cpu._immediate(), // ADC #$nn
+            AddressingMode::Absolute => cpu._absolute(), // ADC $nnnn
+            AddressingMode::AbsoluteX => cpu._absolute_x(), // ADC $nnnn,X
+            AddressingMode::AbsoluteY => cpu._absolute_y(), // ADC $nnnn,Y
+            AddressingMode::ZeroPage => cpu._zero_page(), // ADC $nn
+            AddressingMode::ZeroPageX => cpu._zero_page_x(), // ADC $nn,X
+            AddressingMode::ZeroPageXIndirect => cpu._zero_page_x_indirect(), // ADC ($nn,X)
+            AddressingMode::ZeroPageIndirectY => cpu._zero_page_indirect_y(), // ADC ($nn),Y
+            _ => unimplemented!("bad addressing mode for the ADC instruction"),
+        };
+
+
+        let c: u16 = if cpu.is_carry() {
+            1
+        } else {
+            0
+        };
+        let v = cpu.memory[addr];
+        let r: u16 = cpu.a as u16 + v as u16 + c;
+        cpu.a = r as u8;
+        // TODO: Add overflow flag update
+        cpu.update_negative(r & 0x80 != 0);
+        cpu.update_zero(r & 0xff == 0);
+        cpu.update_carry(r & 0x0100 != 0);
+
+        cpu.pc += addressing_mode_pc_advance(mode);
+    }
+
+    // ARITH - CMP - Subtract Memory from Accumulator with Borrow
+    pub fn cmp(cpu: &mut Cpu, mode: AddressingMode) {
+        let addr = match mode {
+            AddressingMode::Immediate => cpu._immediate(), // CMP #$nn
+            AddressingMode::Absolute => cpu._absolute(), // CMP $nnnn
+            AddressingMode::AbsoluteX => cpu._absolute_x(), // CMP $nnnn,X
+            AddressingMode::AbsoluteY => cpu._absolute_y(), // CMP $nnnn,Y
+            AddressingMode::ZeroPage => cpu._zero_page(), // CMP $nn
+            AddressingMode::ZeroPageX => cpu._zero_page_x(), // CMP $nn,X
+            AddressingMode::ZeroPageXIndirect => cpu._zero_page_x_indirect(), // CMP ($nn,X)
+            AddressingMode::ZeroPageIndirectY => cpu._zero_page_indirect_y(), // CMP ($nn),Y
+            _ => unimplemented!("bad addressing mode for the CMP instruction"),
+        };
+
+        let v = cpu.memory[addr];
+        let r: u16 = (0x0100 + cpu.a as u16) - v as u16;
+        cpu.update_negative(r & 0x80 != 0);
+        cpu.update_zero(r & 0xff == 0);
+        cpu.update_carry(r & 0x0100 != 0);
+
+        cpu.pc += addressing_mode_pc_advance(mode);
+    }
+
+    // ARITH - CPX - Compare Index Register X To Memory
+    pub fn cpx(cpu: &mut Cpu, mode: AddressingMode) {
+        let addr = match mode {
+            AddressingMode::Immediate => cpu._immediate(), // CPX #$nn
+            AddressingMode::Absolute => cpu._absolute(), // CPX $nnnn
+            AddressingMode::ZeroPage => cpu._zero_page(), // CPX $nn
+            _ => unimplemented!("bad addressing mode for the CPX instruction"),
+        };
+
+        let v = cpu.memory[addr];
+        let r: u16 = (0x0100 + cpu.x as u16) - v as u16;
+        cpu.update_negative(r & 0x80 != 0);
+        cpu.update_zero(r & 0xff == 0);
+        cpu.update_carry(r & 0x0100 != 0);
+
+        cpu.pc += addressing_mode_pc_advance(mode);
+        // FIXME: 0x30 - 0x40 ? -0x10 ? should the N_Negative flags be set or not?
+    }
+
+    // ARITH - CPY - Compare Index Register Y To Memory
+    pub fn cpy(cpu: &mut Cpu, mode: AddressingMode) {
+        let addr = match mode {
+            AddressingMode::Immediate => cpu._immediate(), // CPY #$nn
+            AddressingMode::Absolute => cpu._absolute(), // CPY $nnnn
+            AddressingMode::ZeroPage => cpu._zero_page(), // CPY $nn
+            _ => unimplemented!("bad addressing mode for the CPY instruction"),
+        };
+
+        let v = cpu.memory[addr];
+        let r: u16 = (0x0100 + cpu.y as u16) - v as u16;
+        cpu.update_negative(r & 0x80 != 0);
+        cpu.update_zero(r & 0xff == 0);
+        cpu.update_carry(r & 0x0100 != 0);
+
+        cpu.pc += addressing_mode_pc_advance(mode);
+        // FIXME: 0x30 - 0x40 ? -0x10 ? should the N_Negative flags be set or not?
+    }
+
+    // ARITH - SBC - Add Memory to Accumulator with Carry
+    pub fn sbc(cpu: &mut Cpu, mode: AddressingMode) {
+        if cpu.is_decimal() {
+            unimplemented!();
+        }
+
+        let addr = match mode {
+            AddressingMode::Immediate => cpu._immediate(), // SBC #$nn
+            AddressingMode::Absolute => cpu._absolute(), // SBC $nnnn
+            AddressingMode::AbsoluteX => cpu._absolute_x(), // SBC $nnnn,X
+            AddressingMode::AbsoluteY => cpu._absolute_y(), // SBC $nnnn,Y
+            AddressingMode::ZeroPage => cpu._zero_page(), // SBC $nn
+            AddressingMode::ZeroPageX => cpu._zero_page_x(), // SBC $nn,X
+            AddressingMode::ZeroPageXIndirect => cpu._zero_page_x_indirect(), // SBC ($nn,X)
+            AddressingMode::ZeroPageIndirectY => cpu._zero_page_indirect_y(), // SBC ($nn),Y
+            _ => unimplemented!("bad addressing mode for the SBC instruction"),
+        };
+
+        let c: u16 = if cpu.is_carry() {
+            1
+        } else {
+            0
+        };
+        let v = cpu.memory[addr];
+        let r: u16 = 0x0100 + cpu.a as u16 - v as u16 - c;
+        cpu.a = r as u8;
+
+        // TODO: Add overflow flag update
+        cpu.update_negative(r & 0x80 != 0);
+        cpu.update_zero(r & 0xff == 0);
+        cpu.update_carry(r & 0x0100 != 0);
+
+        cpu.pc += addressing_mode_pc_advance(mode);
+    }
+
+    //
+    // inc
+    //
+    // INCREMENT - DEC
+    pub fn dec(cpu: &mut Cpu, mode: AddressingMode) {
+        let addr = match mode {
+            AddressingMode::Absolute => cpu._absolute(),
+            AddressingMode::AbsoluteX => cpu._absolute_x(),
+            AddressingMode::ZeroPage => cpu._zero_page(),
+            AddressingMode::ZeroPageX => cpu._zero_page_x(),
+            _ => unimplemented!("bad addressing mode for the DEC instruction"),
+        };
+
+        let mut v = cpu.memory[addr];
+        v = v.wrapping_sub(1);
+        cpu.memory[addr] = v;
+
+        cpu.update_negative(v & 0x80 != 0);
+        cpu.update_zero(v == 0);
+
+        cpu.pc += addressing_mode_pc_advance(mode);
+    }
+
+    // INCREMENT - DEX - Decrement Index Register X By One
+    pub fn dex(cpu: &mut Cpu, mode: AddressingMode) {
+        assert!(mode == AddressingMode::Implied, "bad addressing mode for the DEX instruction");
+        cpu.x = cpu.x.wrapping_sub(1);
+        cpu.update_negative(cpu.x & 0x80 != 0);
+        cpu.update_zero(cpu.x & 0xff == 0);
+        cpu.pc += addressing_mode_pc_advance(mode);
+    }
+
+    // INCREMENT - DEY - Decrement Index Register Y By One
+    pub fn dey(cpu: &mut Cpu, mode: AddressingMode) {
+        assert!(mode == AddressingMode::Implied, "bad addressing mode for the DEY instruction");
+        cpu.y = cpu.y.wrapping_sub(1);
+        cpu.update_negative(cpu.y & 0x80 != 0);
+        cpu.update_zero(cpu.y & 0xff == 0);
+        cpu.pc += addressing_mode_pc_advance(mode);
+    }
+
+    // INCREMENT - INC - Increment Memory By One
+    pub fn inc(cpu: &mut Cpu, mode: AddressingMode) {
+        let addr = match mode {
+            AddressingMode::Absolute => cpu._absolute(),
+            AddressingMode::AbsoluteX => cpu._absolute_x(),
+            AddressingMode::ZeroPage => cpu._zero_page(),
+            AddressingMode::ZeroPageX => cpu._zero_page_x(),
+            _ => unimplemented!("bad addressing mode for the INC instruction"),
+        };
+
+        let mut v = cpu.memory[addr];
+        v = v.wrapping_add(1);
+        cpu.memory[addr] = v;
+
+        cpu.update_negative(v & 0x80 != 0);
+        cpu.update_zero(v == 0);
+
+        cpu.pc += addressing_mode_pc_advance(mode);
+    }
+
+    // INCREMENT - INX - Increment Index Register X By One
+    pub fn inx(cpu: &mut Cpu, mode: AddressingMode) {
+        assert!(mode == AddressingMode::Implied, "bad addressing mode for the DEX instruction");
+        cpu.x = cpu.x.wrapping_add(1);
+        cpu.update_negative(cpu.x & 0x80 != 0);
+        cpu.update_zero(cpu.x & 0xff == 0);
+        cpu.pc += addressing_mode_pc_advance(mode);
+    }
+
+    // INCREMENT - INY - Increment Index Register Y By One
+    pub fn iny(cpu: &mut Cpu, mode: AddressingMode) {
+        assert!(mode == AddressingMode::Implied, "bad addressing mode for the INY instruction");
+        cpu.y = cpu.y.wrapping_add(1);
+        cpu.update_negative(cpu.y & 0x80 != 0);
+        cpu.update_zero(cpu.y & 0xff == 0);
+        cpu.pc += addressing_mode_pc_advance(mode);
+    }
+
+    //
+    // ctrl
+    //
+    pub fn brk(cpu: &mut Cpu, mode: AddressingMode) {
+        assert!(mode == AddressingMode::Implied, "bad addressing mode for the BRK instruction");
+        cpu.pc += addressing_mode_pc_advance(mode);
+        unimplemented!();
+    }
+
+    pub fn jmp(cpu: &mut Cpu, mode: AddressingMode) {
+        let addr = match mode {
+            AddressingMode::Absolute => cpu._absolute(),
+            AddressingMode::AbsoluteIndirect => cpu._absolute_indirect(),
+            _ => panic!("bad addressing mode for the JMP instruction"),
+        };
+
+         // DO NOT DO THIS !!! // cpu.pc += addressing_mode_pc_advance(mode);
+        cpu.pc = addr as u16;
+    }
+
+    pub fn jsr(cpu: &mut Cpu, mode: AddressingMode) {
+        // TODO: functions for working with stack
+        assert!(mode == AddressingMode::Absolute, "bad addressing mode for the JSR instruction");
+
+        // store program counter on stack
+        let pc = cpu.pc + 1; // +1 -> the last byte of this 3byte instruction. TODO: pay attention
+        cpu.memory[0x0100 + cpu.s as usize] = (pc >> 8) as u8;
+        cpu.s -= 1;
+        cpu.memory[0x0100 + cpu.s as usize] = pc as u8;
+        cpu.s -= 1;
+
+        // load new program counter
+        cpu.pc = cpu._absolute() as u16;
+    }
+
+    pub fn rti(cpu: &mut Cpu, mode: AddressingMode) {
+        // TODO: add function to work with the stack
+        assert!(mode == AddressingMode::Implied, "bad addressing mode for the RTI instruction");
+
+        // restore status flags
+        cpu.p = cpu.memory[0x0100 + cpu.s as usize];
+        cpu.s += 1;
+
+        // restore pc: low byte
+        cpu.pc = cpu.memory[0x0100 + cpu.s as usize] as u16;
+        cpu.s += 1;
+        // restore pc: high byte
+        cpu.pc |= (cpu.memory[0x0100 + cpu.s as usize] as u16) << 8;
+        cpu.s += 1;
+
+        // here += 1 should be used instead of addressing_mode_pc_advance
+        cpu.pc += 1;
+    }
+
+    pub fn rts(cpu: &mut Cpu, mode: AddressingMode) {
+        // TODO: add function to work with the stack
+        assert!(mode == AddressingMode::Implied, "bad addressing mode for the RTS instruction");
+
+        // low byte
+        cpu.s += 1;
+        cpu.pc = cpu.memory[0x0100 + cpu.s as usize] as u16;
+        // high byte
+        cpu.s += 1;
+        cpu.pc |= (cpu.memory[0x0100 + cpu.s as usize] as u16) << 8;
+
+        // here += 1 should be used instead of addressing_mode_pc_advance
+        cpu.pc += 1;
+    }
+
+    //
+    // bra
+    //
+    // BRANCH - BCC - Branch Carry Clear
+    pub fn bcc(cpu: &mut Cpu, mode: AddressingMode) {
+        assert!(mode == AddressingMode::Relative, "bad addressing mode for the BCC instruction");
+        if !cpu.is_carry() {
+            cpu.set_pc_to_current_addr_in_memory();
+        } else {
+            cpu.pc += 2;
+        }
+    }
+
+    // BRANCH - BCS - Branch Carry Set
+    pub fn bcs(cpu: &mut Cpu, mode: AddressingMode) {
+        assert!(mode == AddressingMode::Relative, "bad addressing mode for the BCS instruction");
+        if cpu.is_carry() {
+            cpu.set_pc_to_current_addr_in_memory();
+        } else {
+            cpu.pc += 2;
+        }
+    }
+
+    // BRANCH - BEQ - Branch Equal
+    pub fn beq(cpu: &mut Cpu, mode: AddressingMode) {
+        assert!(mode == AddressingMode::Relative, "bad addressing mode for the BEQ instruction");
+        if cpu.is_zero() {
+            cpu.set_pc_to_current_addr_in_memory();
+        } else {
+            cpu.pc += 2;
+        }
+    }
+
+    // BRANCH - BMI - Branch MInus
+    pub fn bmi(cpu: &mut Cpu, mode: AddressingMode) {
+        assert!(mode == AddressingMode::Relative, "bad addressing mode for the BMI instruction");
+        if cpu.is_negative() {
+            cpu.set_pc_to_current_addr_in_memory();
+        } else {
+            cpu.pc += 2;
+        }
+    }
+
+    // BRANCH - BNE - Branch Not Equal
+    pub fn bne(cpu: &mut Cpu, mode: AddressingMode) {
+        assert!(mode == AddressingMode::Relative, "bad addressing mode for the BNE instruction");
+        if !cpu.is_zero() {
+            cpu.set_pc_to_current_addr_in_memory();
+        } else {
+            cpu.pc += 2;
+        }
+    }
+
+    // BRANCH - BPL - Branch PLus
+    pub fn bpl(cpu: &mut Cpu, mode: AddressingMode) {
+        assert!(mode == AddressingMode::Relative, "bad addressing mode for the BPL instruction");
+        if !cpu.is_negative() {
+            cpu.set_pc_to_current_addr_in_memory();
+        } else {
+            cpu.pc += 2;
+        }
+    }
+
+    // BRANCH - BVC - Branch oVerflow Clear
+    pub fn bvc(cpu: &mut Cpu, mode: AddressingMode) {
+        assert!(mode == AddressingMode::Relative, "bad addressing mode for the BVC instruction");
+        if !cpu.is_overflow() {
+            cpu.set_pc_to_current_addr_in_memory();
+        } else {
+            cpu.pc += 2;
+        }
+    }
+
+    // BRANCH - BVS - Branch oVerflow Set
+    pub fn bvs(cpu: &mut Cpu, mode: AddressingMode) {
+        assert!(mode == AddressingMode::Relative, "bad addressing mode for the BVS instruction");
+        if cpu.is_overflow() {
+            cpu.set_pc_to_current_addr_in_memory();
+        } else {
+            cpu.pc += 2;
+        }
+    }
+
+    //
+    // flags
+    //
+    // FLAGS - CLC - Clear Carry Flag
+    pub fn clc(cpu: &mut Cpu, mode: AddressingMode) {
+        assert!(mode == AddressingMode::Implied);
+        cpu.update_carry(false);
+        cpu.pc += addressing_mode_pc_advance(mode); // SHOULD BE 0
+    }
+
+    // FLAGS - CLD - Clear Decimal Mode
+    pub fn cld(cpu: &mut Cpu, mode: AddressingMode) {
+        assert!(mode == AddressingMode::Implied);
+        cpu.update_decimal(false);
+        cpu.pc += addressing_mode_pc_advance(mode); // SHOULD BE 0
+    }
+
+    // FLAGS - CLI - Clear Interrupt Disable
+    pub fn cli(cpu: &mut Cpu, mode: AddressingMode) {
+        assert!(mode == AddressingMode::Implied);
+        cpu.update_interrupt_disable(false);
+        cpu.pc += addressing_mode_pc_advance(mode); // SHOULD BE 0
+    }
+
+    // FLAGS - CLV - Clear Overflow Flag
+    pub fn clv(cpu: &mut Cpu, mode: AddressingMode) {
+        assert!(mode == AddressingMode::Implied);
+        cpu.update_overflow(false);
+        cpu.pc += addressing_mode_pc_advance(mode); // SHOULD BE 0
+    }
+
+    // FLAGS - SEC - Set Carry Flag
+    pub fn sec(cpu: &mut Cpu, mode: AddressingMode) {
+        assert!(mode == AddressingMode::Implied);
+        cpu.update_carry(true);
+        cpu.pc += addressing_mode_pc_advance(mode); // SHOULD BE 0
+    }
+
+    // FLAGS - SED - Set Decimal Mode
+    pub fn sed(cpu: &mut Cpu, mode: AddressingMode) {
+        assert!(mode == AddressingMode::Implied);
+        cpu.update_decimal(true);
+        cpu.pc += addressing_mode_pc_advance(mode); // SHOULD BE 0
+    }
+
+    // FLAGS - SEI - Set Interrupt Disable
+    pub fn sei(cpu: &mut Cpu, mode: AddressingMode) {
+        assert!(mode == AddressingMode::Implied);
+        cpu.update_interrupt_disable(true);
+        cpu.pc += addressing_mode_pc_advance(mode); // SHOULD BE 0
+    }
+
+    //
+    // nop
+    //
+    pub fn nop(_cpu: &mut Cpu, _mode: AddressingMode) {
+        // ;
+    }
+}
+
 // FIXME:
 #[allow(dead_code)]
 impl Cpu {
@@ -385,74 +1284,27 @@ impl Cpu {
         }
     }
 
+    fn update_decimal(&mut self, flag: bool) {
+        if flag {
+            self.p |= Flags::D_Decimal;
+        } else {
+            self.p &= !Flags::D_Decimal;
+        }
+    }
+
+    fn update_interrupt_disable(&mut self, flag: bool) {
+        if flag {
+            self.p |= Flags::I_InterruptDisable;
+        } else {
+            self.p &= !Flags::I_InterruptDisable;
+        }
+    }
+
     fn set_pc_to_current_addr_in_memory(&mut self) {
         self.pc = self._absolute() as u16;
     }
 
-    fn _asl_inst(&mut self, mut val: u8) -> u8 {
-        self.update_carry(val & 0x80 != 0);
-        val <<= 1;
-        self.update_negative(val & 0x80 != 0);
-        self.update_zero(val == 0);
-        val
-    }
 
-    fn _lsr_inst(&mut self, mut val: u8) -> u8 {
-        self.update_carry(val & 1 != 0);
-        val >>= 1;
-        self.update_negative(false);
-        self.update_zero(val == 0);
-        val
-    }
-
-    fn _rol_inst(&mut self, mut val: u8) -> u8 {
-        let prev_carry = self.is_carry();
-        self.update_carry(val & 0x80 != 0);
-        val <<= 1;
-        if prev_carry {
-            val |= 1;
-        }
-        self.update_negative(val & 0x80 != 0);
-        self.update_zero(val == 0);
-        val
-    }
-
-    fn _ror_inst(&mut self, mut val: u8) -> u8 {
-        let prev_carry = self.is_carry();
-        self.update_carry(val & 1 != 0);
-        val >>= 1;
-        if prev_carry {
-            val |= 0x80;
-        }
-        self.update_negative(val & 0x80 != 0);
-        self.update_zero(val == 0);
-        val
-    }
-
-    fn _and_inst(&mut self, val: u8) {
-        self.a &= val;
-        self.update_zero(self.a == 0);
-        self.update_negative(self.a & 0x80 != 0);
-    }
-
-    fn _bit_inst(&mut self, val: u8) {
-        let r = self.a & val;
-        self.update_zero(r == 0);
-        self.update_overflow(r & 0x40 != 0);
-        self.update_negative(r & 0x80 != 0);
-    }
-
-    fn _eor_inst(&mut self, val: u8) {
-        self.a ^= val;
-        self.update_zero(self.a == 0);
-        self.update_negative(self.a & 0x80 != 0);
-    }
-
-    fn _ora_inst(&mut self, val: u8) {
-        self.a |= val;
-        self.update_zero(self.a == 0);
-        self.update_negative(self.a & 0x80 != 0);
-    }
 
     //
     // Addressing
@@ -467,10 +1319,10 @@ impl Cpu {
         addr
     }
 
-    fn _absolute_indirect_addr(&mut self) -> usize {
+    fn _absolute_indirect(&mut self) -> usize {
         let addr = self._absolute();
         let mut addr2 = self.memory[addr] as usize;
-        addr2 += (self.memory[addr+1] as usize) << 8;
+        addr2 |= (self.memory[addr+1] as usize) << 8;
         addr2
     }
 
@@ -525,1303 +1377,264 @@ impl Cpu {
             //
             // LOAD - LDA
             //
-            opcodes::LDA_A9 => { // LDA #$nn
-                self.a = self.memory[self._immediate()];
-                self.update_negative(self.a & 0x80 != 0);
-                self.update_zero(self.a == 0);
-                self.pc += 1;
-            }
-            opcodes::LDA_AD => { // LDA $nnnn
-                self.a = self.memory[self._absolute()];
-                self.update_negative(self.a & 0x80 != 0);
-                self.update_zero(self.a == 0);
-                self.pc += 2;
-            }
-            opcodes::LDA_BD => { // LDA $nnnn,x
-                self.a = self.memory[self._absolute_x()];
-                self.update_negative(self.a & 0x80 != 0);
-                self.update_zero(self.a == 0);
-                self.pc += 2;
-            }
-            opcodes::LDA_B9 => { // LDA $nnnn,y
-                self.a = self.memory[self._absolute_y()];
-                self.update_negative(self.a & 0x80 != 0);
-                self.update_zero(self.a == 0);
-                self.pc += 2;
-            }
-            opcodes::LDA_A5 => { // LDA $nn
-                self.a = self.memory[self._zero_page()];
-                self.update_negative(self.a & 0x80 != 0);
-                self.update_zero(self.a == 0);
-                self.pc += 1;
-            }
-            opcodes::LDA_B5 => { // LDA $nn,X
-                self.a = self.memory[self._zero_page_x()];
-                self.update_negative(self.a & 0x80 != 0);
-                self.update_zero(self.a == 0);
-                self.pc += 1;
-            }
-            opcodes::LDA_A1 => { // LDA ($nn,X)
-                self.a = self.memory[self._zero_page_x_indirect()];
-                self.update_negative(self.a & 0x80 != 0);
-                self.update_zero(self.a == 0);
-                self.pc += 1;
-            }
-            opcodes::LDA_B1 => { // LDA ($nn),Y
-                self.a = self.memory[self._zero_page_indirect_y()];
-                self.update_negative(self.a & 0x80 != 0);
-                self.update_zero(self.a == 0);
-                self.pc += 1;
-            }
+            opcodes::LDA_A9 => instructions::lda(self, AddressingMode::Immediate), // LDA #$nn
+            opcodes::LDA_AD => instructions::lda(self, AddressingMode::Absolute), // LDA $nnnn
+            opcodes::LDA_BD => instructions::lda(self, AddressingMode::AbsoluteX), // LDA $nnnn,x
+            opcodes::LDA_B9 => instructions::lda(self, AddressingMode::AbsoluteY), // LDA $nnnn,y
+            opcodes::LDA_A5 => instructions::lda(self, AddressingMode::ZeroPage), // LDA $nn
+            opcodes::LDA_B5 => instructions::lda(self, AddressingMode::ZeroPageX), // LDA $nn,X
+            opcodes::LDA_A1 => instructions::lda(self, AddressingMode::ZeroPageXIndirect), // LDA ($nn,X)
+            opcodes::LDA_B1 => instructions::lda(self, AddressingMode::ZeroPageIndirectY), // LDA ($nn),Y
 
             //
             // LOAD - LDX
             //
-            opcodes::LDX_A2 => { // LDX #$nn
-                self.x = self.memory[self._immediate()];
-                self.update_negative(self.x & 0x80 != 0);
-                self.update_zero(self.x == 0);
-                self.pc += 1;
-            }
-            opcodes::LDX_AE => { // LDX $nnnn
-                self.x = self.memory[self._absolute()];
-                self.update_negative(self.x & 0x80 != 0);
-                self.update_zero(self.x == 0);
-                self.pc += 2;
-            }
-            opcodes::LDX_BE => { // LDX $nnnn,Y
-                self.x = self.memory[self._absolute_y()];
-                self.update_negative(self.x & 0x80 != 0);
-                self.update_zero(self.x == 0);
-                self.pc += 2;
-            }
-            opcodes::LDX_A6 => { // LDX $nn
-                self.x = self.memory[self._zero_page()];
-                self.update_negative(self.x & 0x80 != 0);
-                self.update_zero(self.x == 0);
-                self.pc += 1;
-            }
-            opcodes::LDX_B6 => { // LDX $nn,Y
-                self.x = self.memory[self._zero_page_y()];
-                self.update_negative(self.x & 0x80 != 0);
-                self.update_zero(self.x == 0);
-                self.pc += 1;
-            }
+            opcodes::LDX_A2 => instructions::ldx(self, AddressingMode::Immediate), // LDX #$nn
+            opcodes::LDX_AE => instructions::ldx(self, AddressingMode::Absolute), // LDX $nnnn
+            opcodes::LDX_BE => instructions::ldx(self, AddressingMode::AbsoluteY), // LDX $nnnn,Y
+            opcodes::LDX_A6 => instructions::ldx(self, AddressingMode::ZeroPage), // LDX $nn
+            opcodes::LDX_B6 => instructions::ldx(self, AddressingMode::ZeroPageY), // LDX $nn,Y
 
             //
             // LOAD - LDY
             //
-            opcodes::LDY_A0 => { // LDY #$nn
-                self.y = self.memory[self._immediate()];
-                self.update_negative(self.y & 0x80 != 0);
-                self.update_zero(self.y == 0);
-                self.pc += 1;
-            }
-            opcodes::LDY_AC => { // LDY $nnnn
-                self.y = self.memory[self._absolute()];
-                self.update_negative(self.y & 0x80 != 0);
-                self.update_zero(self.y == 0);
-                self.pc += 2;
-            }
-            opcodes::LDY_BC => { // LDY $nnnn,X
-                self.y = self.memory[self._absolute_x()];
-                self.update_negative(self.y & 0x80 != 0);
-                self.update_zero(self.y == 0);
-                self.pc += 2;
-            }
-            opcodes::LDY_A4 => { // LDY $nn
-                self.y = self.memory[self._zero_page()];
-                self.update_negative(self.y & 0x80 != 0);
-                self.update_zero(self.y == 0);
-                self.pc += 1;
-            }
-            opcodes::LDY_B4 => { // LDY $nn,X
-                self.y = self.memory[self._zero_page_x()];
-                self.update_negative(self.y & 0x80 != 0);
-                self.update_zero(self.y == 0);
-                self.pc += 1;
-            }
+            opcodes::LDY_A0 => instructions::ldy(self, AddressingMode::Immediate), // LDY #$nn
+            opcodes::LDY_AC => instructions::ldy(self, AddressingMode::Absolute), // LDY $nnnn
+            opcodes::LDY_BC => instructions::ldy(self, AddressingMode::AbsoluteX), // LDY $nnnn,X
+            opcodes::LDY_A4 => instructions::ldy(self, AddressingMode::ZeroPage), // LDY $nn
+            opcodes::LDY_B4 => instructions::ldy(self, AddressingMode::ZeroPageX), // LDY $nn,X
 
             //
             // LOAD - STA
             //
-            opcodes::STA_8D => { // STA $nnnn
-                self.memory[self._absolute()] = self.a;
-                self.pc += 2;
-            }
-            opcodes::STA_9D => { // STA $nnnn,X
-                self.memory[self._absolute_x()] = self.a;
-                self.pc += 2;
-            }
-            opcodes::STA_99 => { // STA $nnnn,Y
-                self.memory[self._absolute_y()] = self.a;
-                self.pc += 2;
-            }
-            opcodes::STA_85 => { // STA $nn
-                self.memory[self._zero_page()] = self.a;
-                self.pc += 1;
-            }
-            opcodes::STA_95 => { // STA $nn,X
-                self.memory[self._zero_page_x()] = self.a;
-                self.pc += 1;
-            }
-            opcodes::STA_81 => { // STA ($nn,X)
-                self.memory[self._zero_page_x_indirect()] = self.a;
-                self.pc += 1;
-            }
-            opcodes::STA_91 => { // STA ($nn),Y
-                self.memory[self._zero_page_indirect_y()] = self.a;
-                self.pc += 1;
-            }
+            opcodes::STA_8D => instructions::sta(self, AddressingMode::Absolute), // STA $nnnn
+            opcodes::STA_9D => instructions::sta(self, AddressingMode::AbsoluteX), // STA $nnnn,X
+            opcodes::STA_99 => instructions::sta(self, AddressingMode::AbsoluteY), // STA $nnnn,Y
+            opcodes::STA_85 => instructions::sta(self, AddressingMode::ZeroPage), // STA $nn
+            opcodes::STA_95 => instructions::sta(self, AddressingMode::ZeroPageX), // STA $nn,X
+            opcodes::STA_81 => instructions::sta(self, AddressingMode::ZeroPageXIndirect), // STA ($nn,X)
+            opcodes::STA_91 => instructions::sta(self, AddressingMode::ZeroPageIndirectY), // STA ($nn),Y
 
             //
             // LOAD - STX
             //
-            opcodes::STX_8E => { // STX $nnnn
-                self.memory[self._absolute()] = self.x;
-                self.pc += 2;
-            }
-            opcodes::STX_86 => { // STX $nn
-                self.memory[self._zero_page()] = self.x;
-                self.pc += 1;
-            }
-            opcodes::STX_96 => { // STX $nn,Y
-                self.memory[self._zero_page_y()] = self.x;
-                self.pc += 1;
-            }
+            opcodes::STX_8E => instructions::stx(self, AddressingMode::Absolute), // STX $nnnn
+            opcodes::STX_86 => instructions::stx(self, AddressingMode::ZeroPage), // STX $nn
+            opcodes::STX_96 => instructions::stx(self, AddressingMode::ZeroPageY), // STX $nn,Y
 
             //
             // LOAD - STY
             //
-            opcodes::STY_8C => { // STY $nnnn
-                self.memory[self._absolute()] = self.y;
-                self.pc += 2;
-            }
-            opcodes::STY_84 => { // STY $nn
-                self.memory[self._zero_page()] = self.y;
-                self.pc += 1;
-            }
-            opcodes::STY_94 => { // STY $nn,X
-                self.memory[self._zero_page_x()] = self.y;
-                self.pc += 1;
-            }
+            opcodes::STY_8C => instructions::sty(self, AddressingMode::Absolute), // STY $nnnn
+            opcodes::STY_84 => instructions::sty(self, AddressingMode::ZeroPage), // STY $nn
+            opcodes::STY_94 => instructions::sty(self, AddressingMode::ZeroPageX), // STY $nn,X
 
             //
-            // NOP
+            // INCREMENT - INC, INX, INY
             //
-            opcodes::NOP_EA => {
-                // NOP, 2 cycles
-            }
+            opcodes::INC_EE => instructions::inc(self, AddressingMode::Absolute), // INC $nnnn
+            opcodes::INC_FE => instructions::inc(self, AddressingMode::AbsoluteX), // INC $nnnn,X
+            opcodes::INC_E6 => instructions::inc(self, AddressingMode::ZeroPage), // INC $nn
+            opcodes::INC_F6 => instructions::inc(self, AddressingMode::ZeroPageX), // INC $nn,X
 
-            //
-            // INCREMENT - INC
-            //
-            opcodes::INC_EE => { // INC $nnnn
-                let mut a = self.memory[self._absolute()];
-                a = a.wrapping_add(1);
-                self.update_negative(a & 0x80 != 0);
-                self.update_zero(a == 0);
-                self.memory[self._absolute()] = a;
-                self.pc += 2;
-            }
-            opcodes::INC_FE => { // INC $nnnn,X
-                let mut a = self.memory[self._absolute_x()];
-                a = a.wrapping_add(1);
-                self.update_negative(a & 0x80 != 0);
-                self.update_zero(a == 0);
-                self.memory[self._absolute_x()] = a;
-                self.pc += 2;
-            }
-            opcodes::INC_E6 => { // INC $nn
-                let mut a = self.memory[self._zero_page()];
-                a = a.wrapping_add(1);
-                self.update_negative(a & 0x80 != 0);
-                self.update_zero(a == 0);
-                self.memory[self._zero_page()] = a;
-                self.pc += 1;
-            }
-            opcodes::INC_F6 => { // INC $nn,X
-                let mut a = self.memory[self._zero_page_x()];
-                a = a.wrapping_add(1);
-                self.update_negative(a & 0x80 != 0);
-                self.update_zero(a == 0);
-                self.memory[self._zero_page_x()] = a;
-                self.pc += 1;
-            }
-
-            //
-            // INCREMENT - INX
-            //
-            opcodes::INX_E8 => {
-                // INX, 2 cycles, Flags: n,z
-                let result: u16 = self.x as u16 + 1;
-
-                if result & 0xff == 0 {
-                    self.p |= Flags::Z_Zero;
-                } else {
-                    self.p &= !Flags::Z_Zero;
-                }
-
-                self.p &= !Flags::N_Negative;
-                self.p |= (result & Flags::N_Negative as u16) as u8;
-
-                self.x = result as u8;
-            }
-
-            //
-            // INCREMENT - INY
-            //
-            opcodes::INY_C8 => {
-                // INY, 2cycles, Flags: n,z
-                let result: u16 = self.y as u16 + 1;
-
-                if result & 0xff == 0 {
-                    self.p |= Flags::Z_Zero;
-                } else {
-                    self.p &= !Flags::Z_Zero;
-                }
-
-                self.p &= !Flags::N_Negative;
-                self.p |= (result & Flags::N_Negative as u16) as u8;
-
-                self.y = result as u8;
-            }
+            opcodes::INX_E8 => instructions::inx(self, AddressingMode::Implied),
+            opcodes::INY_C8 => instructions::iny(self, AddressingMode::Implied),
 
             //
             // ARITH - ADC
             //
-            opcodes::ADC_69 => { // ADC #$nn
-                if self.is_decimal() {
-                    unimplemented!();
-                }
-                let c: u16 = if self.is_carry() {
-                    1
-                } else {
-                    0
-                };
-                let v = self.memory[self._immediate()];
-                let r: u16 = self.a as u16 + v as u16 + c;
-                self.a = r as u8;
-                // TODO: Add overflow flag update
-                self.update_negative(r & 0x80 != 0);
-                self.update_zero(r & 0xff == 0);
-                self.update_carry(r & 0x0100 != 0);
-                self.pc += 1;
-            }
-            opcodes::ADC_6D => { // ADC $nnnn
-                if self.is_decimal() {
-                    unimplemented!();
-                }
-                let c: u16 = if self.is_carry() {
-                    1
-                } else {
-                    0
-                };
-                let v = self.memory[self._absolute()];
-                let r: u16 = self.a as u16 + v as u16 + c;
-                self.a = r as u8;
-                // TODO: Add overflow flag update
-                self.update_negative(r & 0x80 != 0);
-                self.update_zero(r & 0xff == 0);
-                self.update_carry(r & 0x0100 != 0);
-                self.pc += 2;
-            }
-            opcodes::ADC_7D => { // ADC $nnnn,X
-                if self.is_decimal() {
-                    unimplemented!();
-                }
-                let c: u16 = if self.is_carry() {
-                    1
-                } else {
-                    0
-                };
-                let v = self.memory[self._absolute_x()];
-                let r = self.a as u16 + v as u16 + c;
-                self.a = r as u8;
-                // TODO: Add overflow flag update
-                self.update_negative(r & 0x80 != 0);
-                self.update_zero(r & 0xff == 0);
-                self.update_carry(r & 0x0100 != 0);
-                self.pc += 2;
-            }
-            opcodes::ADC_79 => { // ADC $nnnn,Y
-                if self.is_decimal() {
-                    unimplemented!();
-                }
-                let c: u16 = if self.is_carry() {
-                    1
-                } else {
-                    0
-                };
-                let v = self.memory[self._absolute_y()];
-                let r: u16 = self.a as u16 + v as u16 + c;
-                self.a = r as u8;
-                // TODO: Add overflow flag update
-                self.update_negative(r & 0x80 != 0);
-                self.update_zero(r & 0xff == 0);
-                self.update_carry(r & 0x0100 != 0);
-                self.pc += 2;
-            }
-            opcodes::ADC_65 => { // ADC $nn
-                if self.is_decimal() {
-                    unimplemented!();
-                }
-                let c: u16 = if self.is_carry() {
-                    1
-                } else {
-                    0
-                };
-                let v = self.memory[self._zero_page()];
-                let r: u16 = self.a as u16 + v as u16 + c;
-                self.a = r as u8;
-                // TODO: Add overflow flag update
-                self.update_negative(r & 0x80 != 0);
-                self.update_zero(r & 0xff == 0);
-                self.update_carry(r & 0x0100 != 0);
-                self.pc += 1;
-            }
-            opcodes::ADC_75 => { // ADC $nn,X
-                if self.is_decimal() {
-                    unimplemented!();
-                }
-                let c: u16 = if self.is_carry() {
-                    1
-                } else {
-                    0
-                };
-                let v = self.memory[self._zero_page_x()];
-                let r: u16 = self.a as u16 + v as u16 + c;
-                self.a = r as u8;
-                // TODO: Add overflow flag update
-                self.update_negative(r & 0x80 != 0);
-                self.update_zero(r & 0xff == 0);
-                self.update_carry(r & 0x0100 != 0);
-                self.pc += 1;
-            }
-            opcodes::ADC_61 => { // ADC ($nn,X)
-                if self.is_decimal() {
-                    unimplemented!();
-                }
-                let c: u16 = if self.is_carry() {
-                    1
-                } else {
-                    0
-                };
-                let v = self.memory[self._zero_page_x_indirect()];
-                let r: u16 = self.a as u16 + v as u16 + c;
-                self.a = r as u8;
-                // TODO: Add overflow flag update
-                self.update_negative(r & 0x80 != 0);
-                self.update_zero(r & 0xff == 0);
-                self.update_carry(r & 0x0100 != 0);
-                self.pc += 1;
-            }
-            opcodes::ADC_71 => { // ADC ($nn),Y
-                if self.is_decimal() {
-                    unimplemented!();
-                }
-                let c: u16 = if self.is_carry() {
-                    1
-                } else {
-                    0
-                };
-                let v = self.memory[self._zero_page_indirect_y()];
-                let r: u16 = self.a as u16 + v as u16 + c;
-                self.a = r as u8;
-                // TODO: Add overflow flag update
-                self.update_negative(r & 0x80 != 0);
-                self.update_zero(r & 0xff == 0);
-                self.update_carry(r & 0x0100 != 0);
-                self.pc += 1;
-            }
+            opcodes::ADC_69 => instructions::adc(self, AddressingMode::Immediate), // ADC #$nn
+            opcodes::ADC_6D => instructions::adc(self, AddressingMode::Absolute), // ADC $nnnn
+            opcodes::ADC_7D => instructions::adc(self, AddressingMode::AbsoluteX), // ADC $nnnn,X
+            opcodes::ADC_79 => instructions::adc(self, AddressingMode::AbsoluteY), // ADC $nnnn,Y
+            opcodes::ADC_65 => instructions::adc(self, AddressingMode::ZeroPage), // ADC $nn
+            opcodes::ADC_75 => instructions::adc(self, AddressingMode::ZeroPageX), // ADC $nn,X
+            opcodes::ADC_61 => instructions::adc(self, AddressingMode::ZeroPageXIndirect), // ADC ($nn,X)
+            opcodes::ADC_71 => instructions::adc(self, AddressingMode::ZeroPageIndirectY), // ADC ($nn),Y
 
             //
             // ARITH - SBC
             //
-            opcodes::SBC_E9 => { // SBC #$nn
-                if self.is_decimal() {
-                    unimplemented!();
-                }
-                let c: u16 = if self.is_carry() {
-                    1
-                } else {
-                    0
-                };
-                let v = self.memory[self._immediate()];
-                let r: u16 = 0x0100 + self.a as u16 - v as u16 - c;
-                self.a = r as u8;
-                // TODO: Add overflow flag update
-                self.update_negative(r & 0x80 != 0);
-                self.update_zero(r & 0xff == 0);
-                self.update_carry(r & 0x0100 != 0);
-                self.pc += 1;
-            }
-            opcodes::SBC_ED => { // SBC $nnnn
-                if self.is_decimal() {
-                    unimplemented!();
-                }
-                let c: u16 = if self.is_carry() {
-                    1
-                } else {
-                    0
-                };
-                let v = self.memory[self._absolute()];
-                let r: u16 = 0x0100 + self.a as u16 - v as u16 - c;
-                self.a = r as u8;
-                // TODO: Add overflow flag update
-                self.update_negative(r & 0x80 != 0);
-                self.update_zero(r & 0xff == 0);
-                self.update_carry(r & 0x0100 != 0);
-                self.pc += 2;
-            }
-            opcodes::SBC_FD => { // SBC $nnnn,X
-                if self.is_decimal() {
-                    unimplemented!();
-                }
-                let c: u16 = if self.is_carry() {
-                    1
-                } else {
-                    0
-                };
-                let v = self.memory[self._absolute_x()];
-                let r = 0x0100 + self.a as u16 - v as u16 - c;
-                self.a = r as u8;
-                // TODO: Add overflow flag update
-                self.update_negative(r & 0x80 != 0);
-                self.update_zero(r & 0xff == 0);
-                self.update_carry(r & 0x0100 != 0);
-                self.pc += 2;
-            }
-            opcodes::SBC_F9 => { // SBC $nnnn,Y
-                if self.is_decimal() {
-                    unimplemented!();
-                }
-                let c: u16 = if self.is_carry() {
-                    1
-                } else {
-                    0
-                };
-                let v = self.memory[self._absolute_y()];
-                let r: u16 = 0x0100 + self.a as u16 - v as u16 - c;
-                self.a = r as u8;
-                // TODO: Add overflow flag update
-                self.update_negative(r & 0x80 != 0);
-                self.update_zero(r & 0xff == 0);
-                self.update_carry(r & 0x0100 != 0);
-                self.pc += 2;
-            }
-            opcodes::SBC_E5 => { // SBC $nn
-                if self.is_decimal() {
-                    unimplemented!();
-                }
-                let c: u16 = if self.is_carry() {
-                    1
-                } else {
-                    0
-                };
-                let v = self.memory[self._zero_page()];
-                let r: u16 = 0x0100 + self.a as u16 - v as u16 - c;
-                self.a = r as u8;
-                // TODO: Add overflow flag update
-                self.update_negative(r & 0x80 != 0);
-                self.update_zero(r & 0xff == 0);
-                self.update_carry(r & 0x0100 != 0);
-                self.pc += 1;
-            }
-            opcodes::SBC_F5 => { // SBC $nn,X
-                if self.is_decimal() {
-                    unimplemented!();
-                }
-                let c: u16 = if self.is_carry() {
-                    1
-                } else {
-                    0
-                };
-                let v = self.memory[self._zero_page_x()];
-                let r: u16 = 0x0100 + self.a as u16 - v as u16 - c;
-                self.a = r as u8;
-                // TODO: Add overflow flag update
-                self.update_negative(r & 0x80 != 0);
-                self.update_zero(r & 0xff == 0);
-                self.update_carry(r & 0x0100 != 0);
-                self.pc += 1;
-            }
-            opcodes::SBC_E1 => { // SBC ($nn,X)
-                if self.is_decimal() {
-                    unimplemented!();
-                }
-                let c: u16 = if self.is_carry() {
-                    1
-                } else {
-                    0
-                };
-                let v = self.memory[self._zero_page_x_indirect()];
-                let r: u16 = 0x0100 + self.a as u16 - v as u16 - c;
-                self.a = r as u8;
-                // TODO: Add overflow flag update
-                self.update_negative(r & 0x80 != 0);
-                self.update_zero(r & 0xff == 0);
-                self.update_carry(r & 0x0100 != 0);
-                self.pc += 1;
-            }
-            opcodes::SBC_F1 => { // SBC ($nn),Y
-                if self.is_decimal() {
-                    unimplemented!();
-                }
-                let c: u16 = if self.is_carry() {
-                    1
-                } else {
-                    0
-                };
-                let v = self.memory[self._zero_page_indirect_y()];
-                let r: u16 = 0x0100 + self.a as u16 - v as u16 - c;
-                self.a = r as u8;
-                // TODO: Add overflow flag update
-                self.update_negative(r & 0x80 != 0);
-                self.update_zero(r & 0xff == 0);
-                self.update_carry(r & 0x0100 != 0);
-                self.pc += 1;
-            }
+            opcodes::SBC_E9 => instructions::sbc(self, AddressingMode::Immediate), // SBC #$nn
+            opcodes::SBC_ED => instructions::sbc(self, AddressingMode::Absolute), // SBC $nnnn
+            opcodes::SBC_FD => instructions::sbc(self, AddressingMode::AbsoluteX), // SBC $nnnn,X
+            opcodes::SBC_F9 => instructions::sbc(self, AddressingMode::AbsoluteY), // SBC $nnnn,Y
+            opcodes::SBC_E5 => instructions::sbc(self, AddressingMode::ZeroPage), // SBC $nn
+            opcodes::SBC_F5 => instructions::sbc(self, AddressingMode::ZeroPageX), // SBC $nn,X
+            opcodes::SBC_E1 => instructions::sbc(self, AddressingMode::ZeroPageXIndirect), // SBC ($nn,X)
+            opcodes::SBC_F1 => instructions::sbc(self, AddressingMode::ZeroPageIndirectY), // SBC ($nn),Y
 
             //
             // ARITH - CMP
             //
-            opcodes::CMP_C9 => { // CMP #$nn
-                let v = self.memory[self._immediate()];
-                let r: u16 = (0x0100 + self.a as u16) - v as u16;
-                self.update_negative(r & 0x80 != 0);
-                self.update_zero(r & 0xff == 0);
-                self.update_carry(r & 0x0100 != 0);
-                self.pc += 1;
-            }
-            opcodes::CMP_CD => { // CMP $nnnn
-                let v = self.memory[self._absolute()];
-                let r: u16 = (0x0100 + self.a as u16) - v as u16;
-                self.update_negative(r & 0x80 != 0);
-                self.update_zero(r & 0xff == 0);
-                self.update_carry(r & 0x0100 != 0);
-                self.pc += 2;
-            }
-            opcodes::CMP_DD => { // CMP $nnnn,X
-                let v = self.memory[self._absolute_x()];
-                let r: u16 = (0x0100 + self.a as u16) - v as u16;
-                self.update_negative(r & 0x80 != 0);
-                self.update_zero(r & 0xff == 0);
-                self.update_carry(r & 0x0100 != 0);
-                self.pc += 2;
-            }
-            opcodes::CMP_D9 => { // CMP $nnnn,Y
-                let v = self.memory[self._absolute_y()];
-                let r: u16 = (0x0100 + self.a as u16) - v as u16;
-                self.update_negative(r & 0x80 != 0);
-                self.update_zero(r & 0xff == 0);
-                self.update_carry(r & 0x0100 != 0);
-                self.pc += 2;
-            }
-            opcodes::CMP_C5 => { // CMP $nn
-                let v = self.memory[self._zero_page()];
-                let r: u16 = (0x0100 + self.a as u16) - v as u16;
-                self.update_negative(r & 0x80 != 0);
-                self.update_zero(r & 0xff == 0);
-                self.update_carry(r & 0x0100 != 0);
-                self.pc += 1;
-            }
-            opcodes::CMP_D5 => { // CMP $nn,X
-                let v = self.memory[self._zero_page_x()];
-                let r: u16 = (0x0100 + self.a as u16) - v as u16;
-                self.update_negative(r & 0x80 != 0);
-                self.update_zero(r & 0xff == 0);
-                self.update_carry(r & 0x0100 != 0);
-                self.pc += 1;
-            }
-            opcodes::CMP_C1 => { // CMP ($nn,X)
-                let v = self.memory[self._zero_page_x_indirect()];
-                let r: u16 = (0x0100 + self.a as u16) - v as u16;
-                self.update_negative(r & 0x80 != 0);
-                self.update_zero(r & 0xff == 0);
-                self.update_carry(r & 0x0100 != 0);
-                self.pc += 1;
-            }
-            opcodes::CMP_D1 => { // CMP ($nn),Y
-                let v = self.memory[self._zero_page_indirect_y()];
-                let r: u16 = (0x0100 + self.a as u16) - v as u16;
-                self.update_negative(r & 0x80 != 0);
-                self.update_zero(r & 0xff == 0);
-                self.update_carry(r & 0x0100 != 0);
-                self.pc += 1;
-            }
+            opcodes::CMP_C9 => instructions::cmp(self, AddressingMode::Immediate), // CMP #$nn
+            opcodes::CMP_CD => instructions::cmp(self, AddressingMode::Absolute), // CMP $nnnn
+            opcodes::CMP_DD => instructions::cmp(self, AddressingMode::AbsoluteX), // CMP $nnnn,X
+            opcodes::CMP_D9 => instructions::cmp(self, AddressingMode::AbsoluteY), // CMP $nnnn,Y
+            opcodes::CMP_C5 => instructions::cmp(self, AddressingMode::ZeroPage), // CMP $nn
+            opcodes::CMP_D5 => instructions::cmp(self, AddressingMode::ZeroPageX), // CMP $nn,X
+            opcodes::CMP_C1 => instructions::cmp(self, AddressingMode::ZeroPageXIndirect), // CMP ($nn,X)
+            opcodes::CMP_D1 => instructions::cmp(self, AddressingMode::ZeroPageIndirectY), // CMP ($nn),Y
 
             //
             // ARITH - CPX
             //
             // FIXME: 0x30 - 0x40 ? -0x10 ? should the N_Negative flags be set or not?
-            opcodes::CPX_E0 => { // CPX #$nn
-                let v = self.memory[self._immediate()];
-                let r: u16 = (0x0100 + self.x as u16) - v as u16;
-                self.update_negative(r & 0x80 != 0);
-                self.update_zero(r & 0xff == 0);
-                self.update_carry(r & 0x0100 != 0);
-                self.pc += 1;
-            }
-            opcodes::CPX_EC => { // CPX $nnnn
-                let v = self.memory[self._absolute()];
-                let r: u16 = (0x0100 + self.x as u16) - v as u16;
-                self.update_negative(r & 0x80 != 0);
-                self.update_zero(r & 0xff == 0);
-                self.update_carry(r & 0x0100 != 0);
-                self.pc += 2;
-            }
-            opcodes::CPX_E4 => { // CPX $nn
-                let v = self.memory[self._zero_page()];
-                let r: u16 = (0x0100 + self.x as u16) - v as u16;
-                self.update_negative(r & 0x80 != 0);
-                self.update_zero(r & 0xff == 0);
-                self.update_carry(r & 0x0100 != 0);
-                self.pc += 1;
-            }
+            opcodes::CPX_E0 => instructions::cpx(self, AddressingMode::Immediate), // CPX #$nn
+            opcodes::CPX_EC => instructions::cpx(self, AddressingMode::Absolute), // CPX $nnnn
+            opcodes::CPX_E4 => instructions::cpx(self, AddressingMode::ZeroPage), // CPX $nn
 
             //
             // ARITH - CPY
             //
-            opcodes::CPY_C0 => { // CPY #$nn
-                let v = self.memory[self._immediate()];
-                let r: u16 = (0x0100 + self.y as u16) - v as u16;
-                self.update_negative(r & 0x80 != 0);
-                self.update_zero(r & 0xff == 0);
-                self.update_carry(r & 0x0100 != 0);
-                self.pc += 1;
-            }
-            opcodes::CPY_CC => { // CPY $nnnn
-                let v = self.memory[self._absolute()];
-                let r: u16 = (0x0100 + self.y as u16) - v as u16;
-                self.update_negative(r & 0x80 != 0);
-                self.update_zero(r & 0xff == 0);
-                self.update_carry(r & 0x0100 != 0);
-                self.pc += 2;
-            }
-            opcodes::CPY_C4 => { // CPY $nn
-                let v = self.memory[self._zero_page()];
-                let r: u16 = (0x0100 + self.y as u16) - v as u16;
-                self.update_negative(r & 0x80 != 0);
-                self.update_zero(r & 0xff == 0);
-                self.update_carry(r & 0x0100 != 0);
-                self.pc += 1;
-            }
+            opcodes::CPY_C0 => instructions::cpy(self, AddressingMode::Immediate), // CPY #$nn
+            opcodes::CPY_CC => instructions::cpy(self, AddressingMode::Absolute), // CPY $nnnn
+            opcodes::CPY_C4 => instructions::cpy(self, AddressingMode::ZeroPage), // CPY $nn
 
             //
-            // INCREMENT - DEC
+            // INCREMENT - DEC, DEX, DEY
             //
-            opcodes::DEC_CE => { // DEC $nnnn
-                let mut a = self.memory[self._absolute()];
-                a = a.wrapping_sub(1);
-                self.update_negative(a & 0x80 != 0);
-                self.update_zero(a == 0);
-                self.memory[self._absolute()] = a;
-                self.pc += 2;
-            }
-            opcodes::DEC_DE => { // DEC $nnnn,X
-                let mut a = self.memory[self._absolute_x()];
-                a = a.wrapping_sub(1);
-                self.update_negative(a & 0x80 != 0);
-                self.update_zero(a == 0);
-                self.memory[self._absolute_x()] = a;
-                self.pc += 2;
-            }
-            opcodes::DEC_C6 => { // DEC $nn
-                let mut a = self.memory[self._zero_page()];
-                a = a.wrapping_sub(1);
-                self.update_negative(a & 0x80 != 0);
-                self.update_zero(a == 0);
-                self.memory[self._zero_page()] = a;
-                self.pc += 1;
-            }
-            opcodes::DEC_D6 => { // DEC $nn,X
-                let mut a = self.memory[self._zero_page_x()];
-                a = a.wrapping_sub(1);
-                self.update_negative(a & 0x80 != 0);
-                self.update_zero(a == 0);
-                self.memory[self._zero_page_x()] = a;
-                self.pc += 1;
-            }
+            opcodes::DEC_CE => instructions::dec(self, AddressingMode::Absolute), // DEC $nnnn
+            opcodes::DEC_DE => instructions::dec(self, AddressingMode::AbsoluteX), // DEC $nnnn,X
+            opcodes::DEC_C6 => instructions::dec(self, AddressingMode::ZeroPage), // DEC $nn
+            opcodes::DEC_D6 => instructions::dec(self, AddressingMode::ZeroPageX), // DEC $nn,X
+
+            opcodes::DEX_CA => instructions::dex(self, AddressingMode::Implied),
+            opcodes::DEY_88 => instructions::dey(self, AddressingMode::Implied),
 
             //
-            // INCREMENT - DEX
+            // FLAGS - CLC, CLD, CLI, CLV, SEC, SED, SEI
             //
-            opcodes::DEX_CA => {
-                // DEX, 2 cycles, Flags: n,z
-                let result: u16 = 0x0100 + self.x as u16 - 1;
-
-                if result as u8 == 0 {
-                    self.p |= Flags::Z_Zero;
-                } else {
-                    self.p &= !Flags::Z_Zero;
-                }
-
-                self.p &= !Flags::N_Negative;
-                self.p |= (result & Flags::N_Negative as u16) as u8;
-
-                self.x = result as u8;
-            }
+            opcodes::CLC_18 => instructions::clc(self, AddressingMode::Implied),
+            opcodes::CLD_D8 => instructions::cld(self, AddressingMode::Implied),
+            opcodes::CLI_58 => instructions::cli(self, AddressingMode::Implied),
+            opcodes::CLV_B8 => instructions::clv(self, AddressingMode::Implied),
+            opcodes::SEC_38 => instructions::sec(self, AddressingMode::Implied),
+            opcodes::SED_F8 => instructions::sed(self, AddressingMode::Implied),
+            opcodes::SEI_78 => instructions::sei(self, AddressingMode::Implied),
 
             //
-            // INCREMENT - DEY
+            // TRANSFER - TAX, TAY, TSX, TXA, TXS, TYA
             //
-            opcodes::DEY_88 => {
-                // DEY, 2 cycles, Flags: n,z
-                let result: u16 = 0x0100 + self.y as u16 - 1;
-
-                if result as u8 == 0 {
-                    self.p |= Flags::Z_Zero;
-                } else {
-                    self.p &= !Flags::Z_Zero;
-                }
-
-                self.p &= !Flags::N_Negative;
-                self.p |= (result & Flags::N_Negative as u16) as u8;
-
-                self.y = result as u8;
-            }
+            opcodes::TAX_AA => instructions::tax(self, AddressingMode::Implied),
+            opcodes::TAY_A8 => instructions::tay(self, AddressingMode::Implied),
+            opcodes::TSX_BA => instructions::tsx(self, AddressingMode::Implied),
+            opcodes::TXA_8A => instructions::txa(self, AddressingMode::Implied),
+            opcodes::TXS_9A => instructions::txs(self, AddressingMode::Implied),
+            opcodes::TYA_98 => instructions::tya(self, AddressingMode::Implied),
 
             //
-            // FLAGS - CLC
+            // STACK - PHA, PHP, PLA, PLP
             //
-            opcodes::CLC_18 => {
-                self.p &= !Flags::C_Carry;
-            }
-
-            //
-            // FLAGS - CLD
-            //
-            opcodes::CLD_D8 => {
-                self.p &= !Flags::D_Decimal;
-            }
-
-            //
-            // FLAGS - CLI
-            //
-            opcodes::CLI_58 => {
-                self.p &= !Flags::I_InterruptDisable;
-            }
-
-            //
-            // FLAGS - CLV
-            //
-            opcodes::CLV_B8 => {
-                self.p &= !Flags::V_Overflow;
-            }
-
-            //
-            // FLAGS - SEC
-            //
-            opcodes::SEC_38 => {
-                self.p |= Flags::C_Carry;
-            }
-
-            //
-            // FLAGS - SED
-            //
-            opcodes::SED_F8 => {
-                self.p |= Flags::D_Decimal;
-            }
-
-            //
-            // FLAGS - SEI
-            //
-            opcodes::SEI_78 => {
-                self.p |= Flags::I_InterruptDisable;
-            }
-
-            //
-            // TRANSFER - TAX
-            //
-            opcodes::TAX_AA => {
-                self.x = self.a;
-                self.update_negative(self.x & 0x80 != 0);
-                self.update_zero(self.x == 0);
-            }
-
-            //
-            // TRANSFER - TAY
-            //
-            opcodes::TAY_A8 => {
-                self.y = self.a;
-                self.update_negative(self.y & 0x80 != 0);
-                self.update_zero(self.y == 0);
-            }
-
-            //
-            // TRANSFER - TSX
-            //
-            opcodes::TSX_BA => {
-                self.x = self.s;
-                self.update_negative(self.x & 0x80 != 0);
-                self.update_zero(self.x == 0);
-            }
-
-            //
-            // TRANSFER - TXA
-            //
-            opcodes::TXA_8A => {
-                self.a = self.x;
-                self.update_negative(self.a & 0x80 != 0);
-                self.update_zero(self.a == 0);
-            }
-
-            //
-            // TRANSFER - TXS
-            //
-            opcodes::TXS_9A => {
-                self.s = self.x;
-                self.update_negative(self.s & 0x80 != 0);
-                self.update_zero(self.s == 0);
-            }
-
-            //
-            // TRANSFER - TYA
-            //
-            opcodes::TYA_98 => {
-                self.a = self.y;
-                self.update_negative(self.a & 0x80 != 0);
-                self.update_zero(self.a == 0);
-            }
-
-            //
-            // STACK - PHA
-            //
-            opcodes::PHA_48 => {
-                self.memory[0x100 + self.s as usize] = self.a;
-                self.s -= 1;
-            }
-
-            //
-            // STACK - PHP
-            //
-            opcodes::PHP_08 => {
-                self.memory[0x100 + self.s as usize] = self.p;
-                self.s -= 1;
-            }
-
-            //
-            // STACK - PLA
-            //
-            opcodes::PLA_68 => {
-                self.s += 1;
-                self.a = self.memory[0x100 + self.s as usize];
-            }
-
-            //
-            // STACK - PLP
-            //
-            opcodes::PLP_28 => {
-                self.s += 1;
-                self.p = self.memory[0x100 + self.s as usize];
-            }
+            opcodes::PHA_48 => instructions::pha(self, AddressingMode::Implied),
+            opcodes::PHP_08 => instructions::php(self, AddressingMode::Implied),
+            opcodes::PLA_68 => instructions::pla(self, AddressingMode::Implied),
+            opcodes::PLP_28 => instructions::plp(self, AddressingMode::Implied),
 
             //
             // CONTROL
             //
-            opcodes::BRK_00 => {
-                unimplemented!();
-            }
-            opcodes::JMP_4C => { // JMP $nnnn
-                self.pc = self._absolute() as u16;
-            }
-            opcodes::JMP_6C => { // JMP ($nnnn)
-                let addr = self._absolute_indirect_addr();
-                self.pc = addr as u16;
-            }
-            opcodes::JSR_20 => { // JSR $nnnn
-                // store program counter on stack
-                let pc = self.pc + 1; // +1 -> the last byte of this 3byte instruction. TODO: pay attention
-                self.memory[0x0100 + self.s as usize] = (pc >> 8) as u8;
-                self.s -= 1;
-                self.memory[0x0100 + self.s as usize] = pc as u8;
-                self.s -= 1;
-
-                // load new program counter
-                self.pc = self._absolute() as u16;
-            }
-            opcodes::RTI_40 => {
-                // restore status flags
-                self.p = self.memory[0x0100 + self.s as usize];
-                self.s += 1;
-
-                // restore pc: low byte
-                self.pc = self.memory[0x0100 + self.s as usize] as u16;
-                self.s += 1;
-                // restore pc: high byte
-                self.pc |= (self.memory[0x0100 + self.s as usize] as u16) << 8;
-                self.s += 1;
-
-                self.pc += 1;
-            }
-            opcodes::RTS_60 => {
-                // low byte
-                self.s += 1;
-                self.pc = self.memory[0x0100 + self.s as usize] as u16;
-                // high byte
-                self.s += 1;
-                self.pc |= (self.memory[0x0100 + self.s as usize] as u16) << 8;
-
-                self.pc += 1;
-            }
-
+            opcodes::BRK_00 => instructions::brk(self, AddressingMode::Implied),
+            opcodes::JMP_4C => instructions::jmp(self, AddressingMode::Absolute), // JMP $nnnn
+            opcodes::JMP_6C => instructions::jmp(self, AddressingMode::AbsoluteIndirect), // JMP ($nnnn)
+            opcodes::JSR_20 => instructions::jsr(self, AddressingMode::Absolute), // JSR $nnnn
+            opcodes::RTI_40 => instructions::rti(self, AddressingMode::Implied),
+            opcodes::RTS_60 => instructions::rts(self, AddressingMode::Implied),
 
             //
-            // BRANCH - BCC - Branch Carry Clear
+            // BRANCH
             //
-            opcodes::BCC_90 => {
-                if !self.is_carry() {
-                    self.set_pc_to_current_addr_in_memory();
-                } else {
-                    self.pc += 2;
-                }
-            }
-
-            //
-            // BRANCH - BCS - Branch Carry Set
-            //
-            opcodes::BCS_B0 => {
-                if self.is_carry() {
-                    self.set_pc_to_current_addr_in_memory();
-                } else {
-                    self.pc += 2;
-                }
-            }
-
-            //
-            // BRANCH - BEQ - Branch Equal
-            //
-            opcodes::BEQ_F0 => {
-                if self.is_zero() {
-                    self.set_pc_to_current_addr_in_memory();
-                } else {
-                    self.pc += 2;
-                }
-            }
-
-            //
-            // BRANCH - BMI - Branch MInus
-            //
-            opcodes::BMI_30 => {
-                if self.is_negative() {
-                    self.set_pc_to_current_addr_in_memory();
-                } else {
-                    self.pc += 2;
-                }
-            }
-
-            //
-            // BRANCH - BNE - Branch Not Equal
-            //
-            opcodes::BNE_D0 => {
-                if !self.is_zero() {
-                    self.set_pc_to_current_addr_in_memory();
-                } else {
-                    self.pc += 2;
-                }
-            }
-
-            //
-            // BRANCH - BPL - Branch PLus
-            //
-            opcodes::BPL_10 => {
-                if !self.is_negative() {
-                    self.set_pc_to_current_addr_in_memory();
-                } else {
-                    self.pc += 2;
-                }
-            }
-
-            //
-            // BRANCH - BVC - Branch oVerflow Clear
-            //
-            opcodes::BVC_50 => {
-                if !self.is_overflow() {
-                    self.set_pc_to_current_addr_in_memory();
-                } else {
-                    self.pc += 2;
-                }
-            }
-
-            //
-            // BRANCH - BVS - Branch oVerflow Set
-            //
-            opcodes::BVS_70 => {
-                if self.is_overflow() {
-                    self.set_pc_to_current_addr_in_memory();
-                } else {
-                    self.pc += 2;
-                }
-            }
+            opcodes::BCC_90 => instructions::bcc(self, AddressingMode::Relative), // BCC
+            opcodes::BCS_B0 => instructions::bcs(self, AddressingMode::Relative), // BCS
+            opcodes::BEQ_F0 => instructions::beq(self, AddressingMode::Relative), // BEQ
+            opcodes::BMI_30 => instructions::bmi(self, AddressingMode::Relative), // BMI
+            opcodes::BNE_D0 => instructions::bne(self, AddressingMode::Relative), // BNE
+            opcodes::BPL_10 => instructions::bpl(self, AddressingMode::Relative), // BPL
+            opcodes::BVC_50 => instructions::bvc(self, AddressingMode::Relative), // BVC
+            opcodes::BVS_70 => instructions::bvs(self, AddressingMode::Relative), // BVS
 
             //
             // SHIFT - ASL - Arithmetic Shift Left
             //
-            // TODO: Use `_addressing_mode()` functions here
-            opcodes::ASL_0A => { // ASL A
-                self.a = self._asl_inst(self.a);
-            }
-            opcodes::ASL_0E => { // ASL $nnnn
-                let addr = self._absolute();
-                self.memory[addr] = self._asl_inst(self.memory[addr]);
-                //let mut addr = self._absolute();
-                //*addr = self._asl_inst(*addr);
-                self.pc += 2;
-            }
-            opcodes::ASL_1E => { // ASL $nnnn,X
-                let addr = self._absolute_x();
-                self.memory[addr] = self._asl_inst(self.memory[addr]);
-                //self._asl_inst(self._absolute_x());
-                self.pc += 2;
-            }
-            opcodes::ASL_06 => { // ASL $nn
-                let addr = self._zero_page();
-                self.memory[addr] = self._asl_inst(self.memory[addr]);
-                //self._asl_inst(self._zero_page());
-                self.pc += 1;
-            }
-            opcodes::ASL_16 => { // ASL $nn,X
-                let addr = self._zero_page_x();
-                self.memory[addr] = self._asl_inst(self.memory[addr]);
-                //self._asl_inst(self._zero_page_x());
-                self.pc += 1;
-            }
+            opcodes::ASL_0A => instructions::asl(self, AddressingMode::Accumulator), // ASL A
+            opcodes::ASL_0E => instructions::asl(self, AddressingMode::Absolute), // ASL $nnnn
+            opcodes::ASL_1E => instructions::asl(self, AddressingMode::AbsoluteX), // ASL $nnnn,X
+            opcodes::ASL_06 => instructions::asl(self, AddressingMode::ZeroPage), // ASL $nn
+            opcodes::ASL_16 => instructions::asl(self, AddressingMode::ZeroPageX), // ASL $nn,X
 
             //
             // SHIFT - LSR - Logic Shift Right
             //
-            // TODO: Use `_addressing_mode()` functions here
-            opcodes::LSR_4A => { // LSR A
-                self.a = self._lsr_inst(self.a);
-            }
-            opcodes::LSR_4E => {
-                // LSR $nnnn
-                let addr = self._absolute();
-                self.memory[addr] = self._lsr_inst(self.memory[addr]);
-                self.pc += 2;
-            }
-            opcodes::LSR_5E => { // LSR $nnnn,X
-                let addr = self._absolute_x();
-                self.memory[addr] = self._lsr_inst(self.memory[addr]);
-                self.pc += 2;
-            }
-            opcodes::LSR_46 => { // LSR $nn
-                let addr = self._zero_page();
-                self.memory[addr] = self._lsr_inst(self.memory[addr]);
-                self.pc += 1;
-            }
-            opcodes::LSR_56 => { // LSR $nn,X
-                let addr = self._zero_page_x();
-                self.memory[addr] = self._lsr_inst(self.memory[addr]);
-                self.pc += 1;
-            }
+            opcodes::LSR_4A => instructions::lsr(self, AddressingMode::Accumulator), // LSR A
+            opcodes::LSR_4E => instructions::lsr(self, AddressingMode::Absolute), // LSR $nnnn
+            opcodes::LSR_5E => instructions::lsr(self, AddressingMode::AbsoluteX), // LSR $nnnn,X
+            opcodes::LSR_46 => instructions::lsr(self, AddressingMode::ZeroPage), // LSR $nn
+            opcodes::LSR_56 => instructions::lsr(self, AddressingMode::ZeroPageX), // LSR $nn,X
 
             //
             // SHIFT - ROL - Rotate Left
             //
-            // TODO: Use `_addressing_mode()` functions here
-            opcodes::ROL_2A => { // ROL A
-                self.a = self._rol_inst(self.a);
-            }
-            opcodes::ROL_2E => { // ROL $nnnn
-                let addr = self._absolute();
-                self.memory[addr] = self._rol_inst(self.memory[addr]);
-                self.pc += 2;
-            }
-            opcodes::ROL_3E => { // ROL $nnnn,X
-                let addr = self._absolute_x();
-                self.memory[addr] = self._rol_inst(self.memory[addr]);
-                self.pc += 2;
-            }
-            opcodes::ROL_26 => { // ROL $nn
-                let addr = self._zero_page();
-                self.memory[addr] = self._rol_inst(self.memory[addr]);
-                self.pc += 1;
-            }
-            opcodes::ROL_36 => { // ROL $nn,X
-                let addr = self._zero_page_x();
-                self.memory[addr] = self._rol_inst(self.memory[addr]);
-                self.pc += 1;
-            }
+            opcodes::ROL_2A => instructions::rol(self, AddressingMode::Accumulator), // ROL A
+            opcodes::ROL_2E => instructions::rol(self, AddressingMode::Absolute), // ROL $nnnn
+            opcodes::ROL_3E => instructions::rol(self, AddressingMode::AbsoluteX), // ROL $nnnn,X
+            opcodes::ROL_26 => instructions::rol(self, AddressingMode::ZeroPage), // ROL $nn
+            opcodes::ROL_36 => instructions::rol(self, AddressingMode::ZeroPageX), // ROL $nn,X
 
             //
             // SHIFT - ROR - Rotate Right
             //
-            // TODO: Use `_addressing_mode()` functions here
-            opcodes::ROR_6A => { // ROR A
-                self.a = self._ror_inst(self.a);
-            }
-            opcodes::ROR_6E => { // ROR $nnnn
-                let addr = self._absolute();
-                self.memory[addr] = self._ror_inst(self.memory[addr]);
-                self.pc += 2;
-            }
-            opcodes::ROR_7E => { // ROR $nnnn,X
-                let addr = self._absolute_x();
-                self.memory[addr] = self._ror_inst(self.memory[addr]);
-                self.pc += 2;
-            }
-            opcodes::ROR_66 => { // ROR $nn
-                let addr = self._zero_page();
-                self.memory[addr] = self._ror_inst(self.memory[addr]);
-                self.pc += 1;
-            }
-            opcodes::ROR_76 => { // ROR $nn,X
-                let addr = self._zero_page_x();
-                self.memory[addr] = self._ror_inst(self.memory[addr]);
-                self.pc += 1;
-            }
+            opcodes::ROR_6A => instructions::ror(self, AddressingMode::Accumulator), // ROR A
+            opcodes::ROR_6E => instructions::ror(self, AddressingMode::Absolute), // ROR $nnnn
+            opcodes::ROR_7E => instructions::ror(self, AddressingMode::AbsoluteX), // ROR $nnnn,X
+            opcodes::ROR_66 => instructions::ror(self, AddressingMode::ZeroPage), // ROR $nn
+            opcodes::ROR_76 => instructions::ror(self, AddressingMode::ZeroPageX), // ROR $nn,X
 
             //
             // LOGIC - AND
             //
-            // TODO: Try to remove the usage of `v` here (and copy semantics)
-            opcodes::AND_29 => { // AND #$nn
-                let v = self.memory[self._immediate()];
-                self._and_inst(v);
-                self.pc += 1;
-            }
-            opcodes::AND_2D => { // AND $nnnn
-                let v = self.memory[self._absolute()];
-                self._and_inst(v);
-                self.pc += 2;
-            }
-            opcodes::AND_3D => { // AND $nnnn,X
-                let v = self.memory[self._absolute_x()];
-                self._and_inst(v);
-                self.pc += 2;
-            }
-            opcodes::AND_39 => { // AND $nnnn,Y
-                let v = self.memory[self._absolute_y()];
-                self._and_inst(v);
-                self.pc += 2;
-            }
-            opcodes::AND_25 => { // AND $nn
-                let v = self.memory[self._zero_page()];
-                self._and_inst(v);
-                self.pc += 1;
-            }
-            opcodes::AND_35 => { // AND $nn,X
-                let v = self.memory[self._zero_page_x()];
-                self._and_inst(v);
-                self.pc += 1;
-            }
-            opcodes::AND_21 => { // AND ($nn,X)
-                let v = self.memory[self._zero_page_x_indirect()];
-                self._and_inst(v);
-                self.pc += 1;
-            }
-            opcodes::AND_31 => { // AND ($nn),Y
-                let v = self.memory[self._zero_page_indirect_y()];
-                self._and_inst(v);
-                self.pc += 1;
-            }
+            opcodes::AND_29 => instructions::and(self, AddressingMode::Immediate), // AND #$nn
+            opcodes::AND_2D => instructions::and(self, AddressingMode::Absolute), // AND $nnnn
+            opcodes::AND_3D => instructions::and(self, AddressingMode::AbsoluteX), // AND $nnnn,X
+            opcodes::AND_39 => instructions::and(self, AddressingMode::AbsoluteY), // AND $nnnn,Y
+            opcodes::AND_25 => instructions::and(self, AddressingMode::ZeroPage), // AND $nn
+            opcodes::AND_35 => instructions::and(self, AddressingMode::ZeroPageX), // AND $nn,X
+            opcodes::AND_21 => instructions::and(self, AddressingMode::ZeroPageXIndirect), // AND ($nn,X)
+            opcodes::AND_31 => instructions::and(self, AddressingMode::ZeroPageIndirectY), // AND ($nn),Y
 
             //
             // BIT
             //
-            // TODO: Try to remove the usage of `v` here (and copy semantics)
-            opcodes::BIT_2C => { // BIT $nnnn
-                let v = self.memory[self._absolute()];
-                self._bit_inst(v);
-                self.pc += 2;
-            }
-            opcodes::BIT_24 => { // BIT $nn
-                let v = self.memory[self._zero_page()];
-                self._bit_inst(v);
-                self.pc += 1;
-            }
+            opcodes::BIT_2C => instructions::bit(self, AddressingMode::Absolute), // BIT $nnnn
+            opcodes::BIT_24 => instructions::bit(self, AddressingMode::ZeroPage), // BIT $nn
 
             //
             // EOR
             //
-            // TODO: Try to remove the usage of `v` here (and copy semantics)
-            opcodes::EOR_49 => { // EOR #$49
-                let v = self.memory[self._immediate()];
-                self._eor_inst(v);
-                self.pc += 1;
-            }
-            opcodes::EOR_4D => { // EOR $nnnn
-                let v = self.memory[self._absolute()];
-                self._eor_inst(v);
-                self.pc += 2;
-            }
-            opcodes::EOR_5D => { // EOR $nnnn,X
-                let v = self.memory[self._absolute_x()];
-                self._eor_inst(v);
-                self.pc += 2;
-            }
-            opcodes::EOR_59 => { // EOR $nnnn,Y
-                let v = self.memory[self._absolute_y()];
-                self._eor_inst(v);
-                self.pc += 2;
-            }
-            opcodes::EOR_45 => { // EOR $nn
-                let v = self.memory[self._zero_page()];
-                self._eor_inst(v);
-                self.pc += 1;
-            }
-            opcodes::EOR_55 => { // EOR $nn,X
-                let v = self.memory[self._zero_page_x()];
-                self._eor_inst(v);
-                self.pc += 1;
-            }
-            opcodes::EOR_41 => { // EOR ($nn,X)
-                let v = self.memory[self._zero_page_x_indirect()];
-                self._eor_inst(v);
-                self.pc += 1;
-            }
-            opcodes::EOR_51 => { // EOR ($nn),Y
-                let v = self.memory[self._zero_page_indirect_y()];
-                self._eor_inst(v);
-                self.pc += 1;
-            }
+            opcodes::EOR_49 => instructions::eor(self, AddressingMode::Immediate), // EOR #$49
+            opcodes::EOR_4D => instructions::eor(self, AddressingMode::Absolute), // EOR $nnnn
+            opcodes::EOR_5D => instructions::eor(self, AddressingMode::AbsoluteX), // EOR $nnnn,X
+            opcodes::EOR_59 => instructions::eor(self, AddressingMode::AbsoluteY), // EOR $nnnn,Y
+            opcodes::EOR_45 => instructions::eor(self, AddressingMode::ZeroPage), // EOR $nn
+            opcodes::EOR_55 => instructions::eor(self, AddressingMode::ZeroPageX), // EOR $nn,X
+            opcodes::EOR_41 => instructions::eor(self, AddressingMode::ZeroPageXIndirect), // EOR ($nn,X)
+            opcodes::EOR_51 => instructions::eor(self, AddressingMode::ZeroPageIndirectY), // EOR ($nn),Y
 
             //
             // ORA
             //
-            // TODO: Try to remove the usage of `v` here (and copy semantics)
-            opcodes::ORA_09 => { // ORA #$nn
-                let v = self.memory[self._immediate()];
-                self._ora_inst(v);
-                self.pc += 1;
-            }
-            opcodes::ORA_0D => { // ORA $nnnn
-                let v = self.memory[self._absolute()];
-                self._ora_inst(v);
-                self.pc += 2;
-            }
-            opcodes::ORA_1D => { // ORA $nnnn,X
-                let v = self.memory[self._absolute_x()];
-                self._ora_inst(v);
-                self.pc += 2;
-            }
-            opcodes::ORA_19 => { // ORA $nnnn,Y
-                let v = self.memory[self._absolute_y()];
-                self._ora_inst(v);
-                self.pc += 2;
-            }
-            opcodes::ORA_05 => { // ORA $nn
-                let v = self.memory[self._zero_page()];
-                self._ora_inst(v);
-                self.pc += 1;
-            }
-            opcodes::ORA_15 => { // ORA $nn,X
-                let v = self.memory[self._zero_page_x()];
-                self._ora_inst(v);
-                self.pc += 1;
-            }
-            opcodes::ORA_01 => { // ORA ($nn,X)
-                let v = self.memory[self._zero_page_x_indirect()];
-                self._ora_inst(v);
-                self.pc += 1;
-            }
-            opcodes::ORA_11 => { // ORA ($nn),Y
-                let v = self.memory[self._zero_page_indirect_y()];
-                self._ora_inst(v);
-                self.pc += 1;
-            }
+            opcodes::ORA_09 => instructions::ora(self, AddressingMode::Immediate), // ORA #$nn
+            opcodes::ORA_0D => instructions::ora(self, AddressingMode::Absolute), // ORA $nnnn
+            opcodes::ORA_1D => instructions::ora(self, AddressingMode::AbsoluteX), // ORA $nnnn,X
+            opcodes::ORA_19 => instructions::ora(self, AddressingMode::AbsoluteY), // ORA $nnnn,Y
+            opcodes::ORA_05 => instructions::ora(self, AddressingMode::ZeroPage), // ORA $nn
+            opcodes::ORA_15 => instructions::ora(self, AddressingMode::ZeroPageX), // ORA $nn,X
+            opcodes::ORA_01 => instructions::ora(self, AddressingMode::ZeroPageXIndirect), // ORA ($nn,X)
+            opcodes::ORA_11 => instructions::ora(self, AddressingMode::ZeroPageIndirectY), // ORA ($nn),Y
+
+            //
+            // NOP
+            //
+            opcodes::NOP_EA => instructions::nop(self, AddressingMode::Implied),
 
             _ => unimplemented!(),
         }
@@ -3253,6 +3066,51 @@ mod tests {
     }
 
     //
+    // SBC
+    //
+    /*
+    #[test]
+    fn test_sbc_e9() {
+        unimplemented!();
+    }
+
+    #[test]
+    fn test_sbc_ed() {
+        unimplemented!();
+    }
+
+    #[test]
+    fn test_sbc_fd() {
+        unimplemented!();
+    }
+
+    #[test]
+    fn test_sbc_f9() {
+        unimplemented!();
+    }
+
+    #[test]
+    fn test_sbc_e5() {
+        unimplemented!();
+    }
+
+    #[test]
+    fn test_sbc_f5() {
+        unimplemented!();
+    }
+
+    #[test]
+    fn test_sbc_e1() {
+        unimplemented!();
+    }
+
+    #[test]
+    fn test_sbc_f1() {
+        unimplemented!();
+    }
+    */
+
+    //
     // CMP
     //
     #[test]
@@ -4178,6 +4036,13 @@ mod tests {
     //
     // CONTROL
     //
+    /*
+    #[test]
+    fn test_brk_00() { // BRK
+        panic!();
+    }
+    */
+
     #[test]
     fn test_jmp_4c() { // JMP $nnnn
         let mut cpu = Cpu::new();
@@ -4215,6 +4080,49 @@ mod tests {
         assert!(cpu.memory[0x0100 + cpu.s as usize + 1] == 0x02); // JSR $8000 is at addr 0x0000,
         assert!(cpu.memory[0x0100 + cpu.s as usize + 2] == 0x00); // last byte of this instruction
                                                                   // is at 0x02;
+    }
+
+    #[test]
+    fn test_rti_40() { // RTI
+/*
+        // FIXME: don't know how to write a proper test here
+        //        what is the source of interrupt ??
+        let mut cpu = Cpu::new();
+        let mem_0x0000 = &[JSR_20, 0x00, 0x80,
+                           TAY_A8,
+        ];
+        let mem_0x8000 = &[LDA_A9, 100,
+                           ADC_69, 20,
+                           RTS_60
+        ];
+
+        cpu.patch_memory(0, mem_0x0000);
+        cpu.patch_memory(0x8000, mem_0x8000);
+        cpu.step(); // JSR
+
+        assert!(cpu.pc == 0x8000);
+        assert!(cpu.s == (0xff - 2));
+        assert!(cpu.memory[0x0100 + cpu.s as usize + 1] == 0x02);
+        assert!(cpu.memory[0x0100 + cpu.s as usize + 2] == 0x00);
+
+        cpu.step(); // LDA
+        assert!(cpu.a == 100);
+
+        cpu.step(); // ADC
+        assert!(cpu.a == 120);
+
+        cpu._dump_memory();
+        println!(".1 cpu.pc: 0x{:04x}", cpu.pc);
+        println!(".1 cpu.s: 0x{:02x}", cpu.s);
+        cpu.step(); // RTS
+        println!(".2 cpu.pc: 0x{:04x}", cpu.pc);
+        println!(".2 cpu.s: 0x{:02x}", cpu.s);
+        assert!(cpu.pc == 0x03);
+        assert!(cpu.s == 0xff);
+
+        cpu.step(); // TAY
+        assert!(cpu.y == 120);
+*/
     }
 
     #[test]
