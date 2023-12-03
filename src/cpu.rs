@@ -1646,152 +1646,6 @@ impl Cpu {
         }
     }
 
-    // FIXME: Remove it
-    fn run_opcode(&mut self, op: &[u8]) {
-        let opcode = op[0];
-        match opcode {
-            opcodes::NOP_EA => {
-                // NOP, 2 cycles
-            }
-            opcodes::INX_E8 => {
-                // INX, 2 cycles, Flags: n,z
-                let result: u16 = self.x as u16 + 1;
-
-                if result & 0xff == 0 {
-                    self.p |= Flags::Z_Zero;
-                } else {
-                    self.p &= !Flags::Z_Zero;
-                }
-
-                self.p &= !Flags::N_Negative;
-                self.p |= (result & Flags::N_Negative as u16) as u8;
-
-                self.x = result as u8;
-            }
-            opcodes::INY_C8 => {
-                // INY, 2cycles, Flags: n,z
-                let result: u16 = self.y as u16 + 1;
-
-                if result & 0xff == 0 {
-                    self.p |= Flags::Z_Zero;
-                } else {
-                    self.p &= !Flags::Z_Zero;
-                }
-
-                self.p &= !Flags::N_Negative;
-                self.p |= (result & Flags::N_Negative as u16) as u8;
-
-                self.y = result as u8;
-            }
-            opcodes::DEX_CA => {
-                // DEX, 2 cycles, Flags: n,z
-                let result: u16 = 0x0100 + self.x as u16 - 1;
-
-                if result as u8 == 0 {
-                    self.p |= Flags::Z_Zero;
-                } else {
-                    self.p &= !Flags::Z_Zero;
-                }
-
-                self.p &= !Flags::N_Negative;
-                self.p |= (result & Flags::N_Negative as u16) as u8;
-
-                self.x = result as u8;
-            }
-            opcodes::DEY_88 => {
-                // DEY, 2 cycles, Flags: n,z
-                let result: u16 = 0x0100 + self.y as u16 - 1;
-
-                if result as u8 == 0 {
-                    self.p |= Flags::Z_Zero;
-                } else {
-                    self.p &= !Flags::Z_Zero;
-                }
-
-                self.p &= !Flags::N_Negative;
-                self.p |= (result & Flags::N_Negative as u16) as u8;
-
-                self.y = result as u8;
-            }
-
-            // flags
-            opcodes::CLC_18 => {
-                self.p &= !Flags::C_Carry;
-            }
-            opcodes::CLD_D8 => {
-                self.p &= !Flags::D_Decimal;
-            }
-            opcodes::CLI_58 => {
-                self.p &= !Flags::I_InterruptDisable;
-            }
-            opcodes::CLV_B8 => {
-                self.p &= !Flags::V_Overflow;
-            }
-
-            opcodes::SEC_38 => {
-                self.p |= Flags::C_Carry;
-            }
-            opcodes::SED_F8 => {
-                self.p |= Flags::D_Decimal;
-            }
-            opcodes::SEI_78 => {
-                self.p |= Flags::I_InterruptDisable;
-            }
-
-            // TRANSFER
-            opcodes::TAX_AA => {
-                self.x = self.a;
-                self.update_negative(self.x & 0x80 != 0);
-                self.update_zero(self.x == 0);
-            }
-            opcodes::TAY_A8 => {
-                self.y = self.a;
-                self.update_negative(self.y & 0x80 != 0);
-                self.update_zero(self.y == 0);
-            }
-            opcodes::TSX_BA => {
-                self.x = self.s;
-                self.update_negative(self.x & 0x80 != 0);
-                self.update_zero(self.x == 0);
-            }
-            opcodes::TXA_8A => {
-                self.a = self.x;
-                self.update_negative(self.a & 0x80 != 0);
-                self.update_zero(self.a == 0);
-            }
-            opcodes::TXS_9A => {
-                self.s = self.x;
-                self.update_negative(self.s & 0x80 != 0);
-                self.update_zero(self.s == 0);
-            }
-            opcodes::TYA_98 => {
-                self.a = self.y;
-                self.update_negative(self.a & 0x80 != 0);
-                self.update_zero(self.a == 0);
-            }
-
-            // STACK
-            opcodes::PHA_48 => {
-                self.memory[0x100 + self.s as usize] = self.a;
-                self.s -= 1;
-            }
-            opcodes::PHP_08 => {
-                self.memory[0x100 + self.s as usize] = self.p;
-                self.s -= 1;
-            }
-            opcodes::PLA_68 => {
-                self.s += 1;
-                self.a = self.memory[0x100 + self.s as usize];
-            }
-            opcodes::PLP_28 => {
-                self.s += 1;
-                self.p = self.memory[0x100 + self.s as usize];
-            }
-
-            _ => unimplemented!(),
-        }
-    }
-
     fn patch_memory(&mut self, offset: usize, bytes: &[u8]) {
         for (idx, b) in bytes.iter().enumerate() {
             self.memory[offset + idx] = *b;
@@ -2582,10 +2436,16 @@ mod tests {
     #[test]
     fn test_nop() {
         let mut cpu = Cpu::new();
-        cpu.run_opcode(&[NOP_EA]);
+        cpu.patch_memory(0, &[NOP_EA]);
+        cpu.step();
 
         let fresh = Cpu::new();
-        assert_eq!(cpu, fresh);
+        assert_eq!(cpu.a, fresh.a);
+        assert_eq!(cpu.x, fresh.x);
+        assert_eq!(cpu.y, fresh.y);
+        assert_eq!(cpu.p, fresh.p);
+        assert_eq!(cpu.s, fresh.s);
+        assert_eq!(cpu.pc, fresh.pc + 1);
     }
 
     //
@@ -2620,15 +2480,10 @@ mod tests {
     #[test]
     fn test_inc_fe() { // INC $nnnn,X
         let mut cpu = Cpu::new();
+        cpu.patch_memory(0, &[INC_FE, 0x20, 0x40]); // INC $4020
+        cpu.memory[0x4055] = 200;
         cpu.x = 0x35;
         let mut expected: u8 = 200u8;
-
-        let mut mem: [u8; MEM_SZ] = [0; MEM_SZ];
-        mem[0] = INC_FE; // INC $4000
-        mem[1] = 0x20;
-        mem[2] = 0x40;
-        mem[0x4055] = 200;
-        cpu.patch_memory(0, &mem);
 
         for _ in 1..512 {
             cpu.pc = 0x0000;
@@ -2639,21 +2494,17 @@ mod tests {
 
             let expected_z: bool = expected == 0;
             let expected_n = (expected & 0x80) > 0;
-            assert_eq!((cpu.p & Flags::Z_Zero) > 0, expected_z);
-            assert_eq!(cpu.p & Flags::N_Negative > 0, expected_n);
+            assert_eq!(cpu.is_zero(), expected_z);
+            assert_eq!(cpu.is_negative(), expected_n);
         }
     }
 
     #[test]
     fn test_inc_e6() { // INC $nn
         let mut cpu = Cpu::new();
+        cpu.patch_memory(0, &[INC_E6, 0x20]); // INC $20
+        cpu.memory[0x0020] = 200;
         let mut expected: u8 = 200u8;
-
-        let mut mem: [u8; MEM_SZ] = [0; MEM_SZ];
-        mem[0] = INC_E6; // INC $4000
-        mem[1] = 0x20;
-        mem[0x0020] = 200;
-        cpu.patch_memory(0, &mem);
 
         for _ in 1..512 {
             cpu.pc = 0x0000;
@@ -2664,22 +2515,18 @@ mod tests {
 
             let expected_z: bool = expected == 0;
             let expected_n = (expected & 0x80) > 0;
-            assert_eq!((cpu.p & Flags::Z_Zero) > 0, expected_z);
-            assert_eq!(cpu.p & Flags::N_Negative > 0, expected_n);
+            assert_eq!(cpu.is_zero(), expected_z);
+            assert_eq!(cpu.is_negative(), expected_n);
         }
     }
 
     #[test]
     fn test_inc_f6() { // INC $nn,X
         let mut cpu = Cpu::new();
+        cpu.patch_memory(0, &[INC_F6, 0x20]); // INC $20
+        cpu.memory[0x0055] = 200;
         cpu.x = 0x35;
         let mut expected: u8 = 200u8;
-
-        let mut mem: [u8; MEM_SZ] = [0; MEM_SZ];
-        mem[0] = INC_F6; // INC $4000
-        mem[1] = 0x20;
-        mem[0x0055] = 200;
-        cpu.patch_memory(0, &mem);
 
         for _ in 1..512 {
             cpu.pc = 0x0000;
@@ -2690,8 +2537,8 @@ mod tests {
 
             let expected_z: bool = expected == 0;
             let expected_n = (expected & 0x80) > 0;
-            assert_eq!((cpu.p & Flags::Z_Zero) > 0, expected_z);
-            assert_eq!(cpu.p & Flags::N_Negative > 0, expected_n);
+            assert_eq!(cpu.is_zero(), expected_z);
+            assert_eq!(cpu.is_negative(), expected_n);
         }
     }
 
@@ -2701,53 +2548,56 @@ mod tests {
     #[test]
     fn test_inx() {
         let mut cpu = Cpu::new();
+        let mem: [u8; 512] = [INX_E8; 512];
+        cpu.patch_memory(0, &mem);
         let mut expected_x: u16 = 0;
 
         assert_eq!(cpu.x, expected_x as u8);
 
-        cpu.run_opcode(&[INX_E8]);
+        cpu.step(); // INX
         expected_x += 1;
 
         assert_eq!(cpu.x, expected_x as u8);
         assert_eq!(cpu.p, 0);
 
         for _ in 1..512 {
-            cpu.run_opcode(&[INX_E8]);
+            cpu.step(); // INX
             expected_x += 1;
 
             assert_eq!(cpu.x, expected_x as u8);
 
             let expected_z: bool = if (expected_x as u8) == 0 { true } else { false };
-            let expected_n = expected_x as u8 & 0x80;
-            assert_eq!((cpu.p & Flags::Z_Zero) > 0, expected_z);
-            assert_eq!(cpu.p & Flags::N_Negative, expected_n);
+            let expected_n = expected_x & 0x80 > 0;
+            assert_eq!(cpu.is_zero(), expected_z);
+            assert_eq!(cpu.is_negative(), expected_n);
         }
     }
 
     #[test]
     fn test_iny() {
-        // this is a copy of inx test
         let mut cpu = Cpu::new();
+        let mem: [u8; 512] = [INY_C8; 512];
+        cpu.patch_memory(0, &mem);
         let mut expected_y: u16 = 0;
 
         assert_eq!(cpu.y, expected_y as u8);
 
-        cpu.run_opcode(&[INY_C8]);
+        cpu.step(); // INY
         expected_y += 1;
 
         assert_eq!(cpu.y, expected_y as u8);
         assert_eq!(cpu.p, 0);
 
         for _ in 1..512 {
-            cpu.run_opcode(&[INY_C8]);
+            cpu.step(); // INY
             expected_y += 1;
 
             assert_eq!(cpu.y, expected_y as u8);
 
             let expected_z: bool = if (expected_y as u8) == 0 { true } else { false };
-            let expected_n = expected_y as u8 & 0x80;
-            assert_eq!((cpu.p & Flags::Z_Zero) > 0, expected_z);
-            assert_eq!(cpu.p & Flags::N_Negative, expected_n);
+            let expected_n = expected_y & 0x80 > 0;
+            assert_eq!(cpu.is_zero(), expected_z);
+            assert_eq!(cpu.is_negative(), expected_n);
         }
     }
 
@@ -3602,55 +3452,58 @@ mod tests {
     #[test]
     fn test_dex() {
         let mut cpu = Cpu::new();
+        let mem: [u8; 512] = [DEX_CA; 512];
+        cpu.patch_memory(0, &mem);
         cpu.x = 100;
         let mut expected_x: i16 = 100;
 
         assert_eq!(cpu.x, expected_x as u8);
 
-        cpu.run_opcode(&[0xCA]);
+        cpu.step(); // DEX
         expected_x -= 1;
 
         assert_eq!(cpu.x, expected_x as u8);
         assert_eq!(cpu.p, 0);
 
         for _ in 1..512 {
-            cpu.run_opcode(&[DEX_CA]);
+            cpu.step(); // DEX
             expected_x -= 1;
 
             assert_eq!(cpu.x, expected_x as u8);
 
             let expected_z: bool = if (expected_x as u8) == 0 { true } else { false };
-            let expected_n = expected_x as u8 & 0x80;
-            assert_eq!((cpu.p & Flags::Z_Zero) > 0, expected_z);
-            assert_eq!(cpu.p & Flags::N_Negative, expected_n);
+            let expected_n = expected_x as u8 & 0x80 > 0;
+            assert_eq!(cpu.is_zero(), expected_z);
+            assert_eq!(cpu.is_negative(), expected_n);
         }
     }
 
     #[test]
     fn test_dey() {
-        // copy-pasta of test_dex()
         let mut cpu = Cpu::new();
+        let mem: [u8; 512] = [DEY_88; 512];
+        cpu.patch_memory(0, &mem);
         cpu.y = 100;
         let mut expected_y: i16 = 100;
 
         assert_eq!(cpu.y, expected_y as u8);
 
-        cpu.run_opcode(&[0x88]);
+        cpu.step(); // DEY
         expected_y -= 1;
 
         assert_eq!(cpu.y, expected_y as u8);
         assert_eq!(cpu.p, 0);
 
         for _ in 1..512 {
-            cpu.run_opcode(&[opcodes::DEY_88]);
+            cpu.step(); // DEY
             expected_y -= 1;
 
             assert_eq!(cpu.y, expected_y as u8);
 
             let expected_z: bool = if (expected_y as u8) == 0 { true } else { false };
-            let expected_n = expected_y as u8 & 0x80;
-            assert_eq!((cpu.p & Flags::Z_Zero) > 0, expected_z);
-            assert_eq!(cpu.p & Flags::N_Negative, expected_n);
+            let expected_n = expected_y as u8 & 0x80 > 0;
+            assert_eq!(cpu.is_zero(), expected_z);
+            assert_eq!(cpu.is_negative(), expected_n);
         }
     }
 
@@ -3661,68 +3514,75 @@ mod tests {
     fn test_clc() {
         // clear carry flag
         let mut cpu = Cpu::new();
+        cpu.patch_memory(0, &[CLC_18]);
         cpu.p = Flags::C_Carry;
-        assert!(cpu.p & Flags::C_Carry != 0);
+        assert!(cpu.is_carry());
 
-        cpu.run_opcode(&[CLC_18]);
-        assert!(cpu.p & Flags::C_Carry == 0);
+        cpu.step(); // CLC
+        assert!(!cpu.is_carry());
     }
 
     #[test]
     fn test_cld() {
         let mut cpu = Cpu::new();
-        cpu.p |= Flags::D_Decimal;
-        assert!(cpu.p & Flags::D_Decimal != 0);
+        cpu.patch_memory(0, &[CLD_D8]);
+        cpu.update_decimal(true);
+        assert!(cpu.is_decimal());
 
-        cpu.run_opcode(&[CLD_D8]);
-        assert!(cpu.p & Flags::D_Decimal == 0);
+        cpu.step(); // CLD
+        assert!(!cpu.is_decimal());
     }
 
     #[test]
     fn test_cli() {
         let mut cpu = Cpu::new();
-        cpu.p |= Flags::I_InterruptDisable;
-        assert!(cpu.p & Flags::I_InterruptDisable != 0);
+        cpu.patch_memory(0, &[CLI_58]);
+        cpu.update_interrupt_disable(true);
+        assert!(cpu.is_interrupt_disabled());
 
-        cpu.run_opcode(&[CLI_58]);
-        assert!(cpu.p & Flags::I_InterruptDisable == 0);
+        cpu.step(); // CLI
+        assert!(!cpu.is_interrupt_disabled());
     }
 
     #[test]
     fn test_clv() {
         let mut cpu = Cpu::new();
-        cpu.p |= Flags::V_Overflow;
-        assert!(cpu.p & Flags::V_Overflow != 0);
+        cpu.patch_memory(0, &[CLV_B8]);
+        cpu.update_overflow(true);
+        assert!(cpu.is_overflow());
 
-        cpu.run_opcode(&[CLV_B8]);
-        assert!(cpu.p & Flags::V_Overflow == 0);
+        cpu.step(); // CLV
+        assert!(!cpu.is_overflow());
     }
 
     #[test]
     fn test_sec() {
         let mut cpu = Cpu::new();
-        assert!(cpu.p & Flags::C_Carry == 0);
+        cpu.patch_memory(0, &[SEC_38]);
+        assert!(!cpu.is_carry());
 
-        cpu.run_opcode(&[SEC_38]);
-        assert!(cpu.p & Flags::C_Carry != 0);
+        cpu.step(); // SEC
+        assert!(cpu.is_carry());
     }
 
     #[test]
     fn test_sed() {
         let mut cpu = Cpu::new();
-        assert!(cpu.p & Flags::D_Decimal == 0);
+        cpu.patch_memory(0, &[SED_F8]);
+        assert!(!cpu.is_decimal());
 
-        cpu.run_opcode(&[SED_F8]);
-        assert!(cpu.p & Flags::D_Decimal != 0);
+        cpu.step(); // SED
+        assert!(cpu.is_decimal());
     }
 
     #[test]
     fn test_sei() {
         let mut cpu = Cpu::new();
-        assert!(cpu.p & Flags::I_InterruptDisable == 0);
+        cpu.patch_memory(0, &[SEI_78]);
+        assert!(!cpu.is_interrupt_disabled());
 
-        cpu.run_opcode(&[SEI_78]);
-        assert!(cpu.p & Flags::I_InterruptDisable != 0);
+        cpu.step(); // SEI
+        assert!(cpu.is_interrupt_disabled());
     }
 
     //
@@ -3731,12 +3591,13 @@ mod tests {
     #[test]
     fn test_tax() {
         let mut cpu = Cpu::new();
+        cpu.patch_memory(0, &[TAX_AA, TAX_AA, TAX_AA]);
         cpu.a = 55;
 
         assert!(cpu.a == 55);
         assert!(cpu.x == 0);
 
-        cpu.run_opcode(&[TAX_AA]);
+        cpu.step(); // TAX
         assert!(cpu.a == 55);
         assert!(cpu.x == 55);
         assert!(!cpu.is_negative());
@@ -3748,7 +3609,7 @@ mod tests {
         assert!(cpu.a == 200);
         assert!(cpu.x == 55);
 
-        cpu.run_opcode(&[TAX_AA]);
+        cpu.step(); // TAX
         assert!(cpu.a == 200);
         assert!(cpu.x == 200);
         assert!(cpu.is_negative());
@@ -3760,7 +3621,7 @@ mod tests {
         assert!(cpu.a == 0);
         assert!(cpu.x == 200);
 
-        cpu.run_opcode(&[TAX_AA]);
+        cpu.step(); // TAX
         assert!(cpu.a == 0);
         assert!(cpu.x == 0);
         assert!(!cpu.is_negative());
@@ -3770,12 +3631,13 @@ mod tests {
     #[test]
     fn test_tay() {
         let mut cpu = Cpu::new();
+        cpu.patch_memory(0, &[TAY_A8, TAY_A8, TAY_A8]);
         cpu.a = 55;
 
         assert!(cpu.a == 55);
         assert!(cpu.y == 0);
 
-        cpu.run_opcode(&[TAY_A8]);
+        cpu.step(); // TAY
         assert!(cpu.a == 55);
         assert!(cpu.y == 55);
         assert!(!cpu.is_negative());
@@ -3787,7 +3649,7 @@ mod tests {
         assert!(cpu.a == 200);
         assert!(cpu.y == 55);
 
-        cpu.run_opcode(&[TAY_A8]);
+        cpu.step(); // TAY
         assert!(cpu.a == 200);
         assert!(cpu.y == 200);
         assert!(cpu.is_negative());
@@ -3799,7 +3661,7 @@ mod tests {
         assert!(cpu.a == 0);
         assert!(cpu.y == 200);
 
-        cpu.run_opcode(&[TAY_A8]);
+        cpu.step(); // TAY
         assert!(cpu.a == 0);
         assert!(cpu.y == 0);
         assert!(!cpu.is_negative());
@@ -3809,12 +3671,13 @@ mod tests {
     #[test]
     fn test_tsx() {
         let mut cpu = Cpu::new();
+        cpu.patch_memory(0, &[TSX_BA, TSX_BA, TSX_BA]);
         cpu.s = 55;
 
         assert!(cpu.s == 55);
         assert!(cpu.x == 0);
 
-        cpu.run_opcode(&[TSX_BA]);
+        cpu.step(); // TSX
         assert!(cpu.s == 55);
         assert!(cpu.x == 55);
         assert!(!cpu.is_negative());
@@ -3826,7 +3689,7 @@ mod tests {
         assert!(cpu.s == 200);
         assert!(cpu.x == 55);
 
-        cpu.run_opcode(&[TSX_BA]);
+        cpu.step(); // TSX
         assert!(cpu.s == 200);
         assert!(cpu.x == 200);
         assert!(cpu.is_negative());
@@ -3838,7 +3701,7 @@ mod tests {
         assert!(cpu.s == 0);
         assert!(cpu.x == 200);
 
-        cpu.run_opcode(&[TSX_BA]);
+        cpu.step(); // TSX
         assert!(cpu.s == 0);
         assert!(cpu.x == 0);
         assert!(!cpu.is_negative());
@@ -3848,12 +3711,13 @@ mod tests {
     #[test]
     fn test_txa() {
         let mut cpu = Cpu::new();
+        cpu.patch_memory(0, &[TXA_8A, TXA_8A, TXA_8A]);
         cpu.x = 55;
 
         assert!(cpu.x == 55);
         assert!(cpu.a == 0);
 
-        cpu.run_opcode(&[TXA_8A]);
+        cpu.step(); // TXA
         assert!(cpu.x == 55);
         assert!(cpu.a == 55);
         assert!(!cpu.is_negative());
@@ -3865,7 +3729,7 @@ mod tests {
         assert!(cpu.x == 200);
         assert!(cpu.a == 55);
 
-        cpu.run_opcode(&[TXA_8A]);
+        cpu.step(); // TXA
         assert!(cpu.x == 200);
         assert!(cpu.a == 200);
         assert!(cpu.is_negative());
@@ -3877,7 +3741,7 @@ mod tests {
         assert!(cpu.x == 0);
         assert!(cpu.a == 200);
 
-        cpu.run_opcode(&[TXA_8A]);
+        cpu.step(); // TXA
         assert!(cpu.x == 0);
         assert!(cpu.a == 0);
         assert!(!cpu.is_negative());
@@ -3887,16 +3751,15 @@ mod tests {
     #[test]
     fn test_txs() {
         let mut cpu = Cpu::new();
+        cpu.patch_memory(0, &[TXS_9A, TXS_9A, TXS_9A]);
         cpu.x = 55;
 
         assert!(cpu.x == 55);
         assert!(cpu.s == 0xff);
 
-        cpu.run_opcode(&[TXS_9A]);
+        cpu.step(); // TXS
         assert!(cpu.x == 55);
         assert!(cpu.s == 55);
-        assert!(!cpu.is_negative());
-        assert!(!cpu.is_zero());
 
         // --------------------------------------
 
@@ -3904,11 +3767,9 @@ mod tests {
         assert!(cpu.x == 200);
         assert!(cpu.s == 55);
 
-        cpu.run_opcode(&[TXS_9A]);
+        cpu.step(); // TXS
         assert!(cpu.x == 200);
         assert!(cpu.s == 200);
-        assert!(cpu.is_negative());
-        assert!(!cpu.is_zero());
 
         // --------------------------------------
 
@@ -3916,22 +3777,21 @@ mod tests {
         assert!(cpu.x == 0);
         assert!(cpu.s == 200);
 
-        cpu.run_opcode(&[TXS_9A]);
+        cpu.step(); // TXS
         assert!(cpu.x == 0);
         assert!(cpu.s == 0);
-        assert!(!cpu.is_negative());
-        assert!(cpu.is_zero());
     }
 
     #[test]
     fn test_tya() {
         let mut cpu = Cpu::new();
+        cpu.patch_memory(0, &[TYA_98, TYA_98, TYA_98]);
         cpu.y = 55;
 
         assert!(cpu.y == 55);
         assert!(cpu.a == 0);
 
-        cpu.run_opcode(&[TYA_98]);
+        cpu.step(); // TYA
         assert!(cpu.y == 55);
         assert!(cpu.a == 55);
         assert!(!cpu.is_negative());
@@ -3943,7 +3803,7 @@ mod tests {
         assert!(cpu.y == 200);
         assert!(cpu.a == 55);
 
-        cpu.run_opcode(&[TYA_98]);
+        cpu.step(); // TYA
         assert!(cpu.y == 200);
         assert!(cpu.a == 200);
         assert!(cpu.is_negative());
@@ -3955,7 +3815,7 @@ mod tests {
         assert!(cpu.y == 0);
         assert!(cpu.a == 200);
 
-        cpu.run_opcode(&[TYA_98]);
+        cpu.step(); // TYA
         assert!(cpu.y == 0);
         assert!(cpu.a == 0);
         assert!(!cpu.is_negative());
@@ -3968,10 +3828,11 @@ mod tests {
     #[test]
     fn test_pha() {
         let mut cpu = Cpu::new();
+        cpu.patch_memory(0, &[PHA_48]);
         cpu.a = 0x28;
 
         assert!(cpu.s == 0xff);
-        cpu.run_opcode(&[PHA_48]);
+        cpu.step(); // PHA
 
         assert!(cpu.s == 0xfe);
         assert!(cpu.a == 0x28);
@@ -3981,17 +3842,17 @@ mod tests {
     #[test]
     fn test_php() {
         let mut cpu = Cpu::new();
+        cpu.patch_memory(0, &[SEC_38, SED_F8, SEI_78, PHP_08]);
 
-        cpu.run_opcode(&[SEC_38]);
-        cpu.run_opcode(&[SED_F8]);
-        cpu.run_opcode(&[SEI_78]);
+        cpu.step(); // SEC
+        cpu.step(); // SED
+        cpu.step(); // SEI
 
         assert!(cpu.is_carry());
         assert!(cpu.is_decimal());
         assert!(cpu.is_interrupt_disabled());
 
-        cpu.run_opcode(&[PHP_08]);
-
+        cpu.step(); // PHP
         assert!(cpu.s == 0xfe);
         let pushed_value = cpu.memory[cpu.s as usize + 1 + 0x100];
         assert!(pushed_value & Flags::C_Carry != 0);
@@ -4004,12 +3865,13 @@ mod tests {
         let mut cpu = Cpu::new();
         cpu.a = 0x33;
 
-        cpu.run_opcode(&[PHA_48]);
+        cpu.patch_memory(0, &[PHA_48, PLA_68]);
+        cpu.step();
         cpu.a = 0x66;
         assert!(cpu.a == 0x66);
         assert!(cpu.s == 0xfe);
 
-        cpu.run_opcode(&[PLA_68]);
+        cpu.step();
         assert!(cpu.a == 0x33);
         assert!(cpu.s == 0xff);
     }
@@ -4023,10 +3885,11 @@ mod tests {
         let saved_flags: u8 = Flags::C_Carry | Flags::D_Decimal | Flags::V_Overflow;
         cpu.a = saved_flags;
 
-        cpu.run_opcode(&[PHA_48]);
+        cpu.patch_memory(0, &[PHA_48, PLP_28]);
+        cpu.step();
         assert!(cpu.s == 0xfe);
 
-        cpu.run_opcode(&[PLP_28]);
+        cpu.step();
         assert!(cpu.s == 0xff);
         assert!(cpu.is_carry());
         assert!(cpu.is_decimal());
