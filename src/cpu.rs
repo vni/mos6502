@@ -864,7 +864,7 @@ mod instructions {
         // TODO: Add overflow flag update
         cpu.update_negative(r & 0x80 != 0);
         cpu.update_zero(r & 0xff == 0);
-        cpu.update_carry(r & 0x0100 != 0);
+        cpu.update_carry(r & 0x0100 == 0);
 
         cpu.pc += addressing_mode_pc_advance(mode);
     }
