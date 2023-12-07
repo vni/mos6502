@@ -1,6 +1,7 @@
 /** USEFUL LINKS
     https://www.pagetable.com/c64ref/6502/?tab=2
     http://www.emulator101.com/6502-addressing-modes.html
+    https://www.masswerk.at/6502/6502_instruction_set.html#SBC
     https://web.archive.org/web/20221112230813if_/http://archive.6502.org/books/mcs6500_family_programming_manual.pdf
 */
 
@@ -1163,7 +1164,7 @@ mod instructions {
 // FIXME:
 #[allow(dead_code)]
 impl Cpu {
-    fn new() -> Cpu {
+    pub fn new() -> Cpu {
         Cpu {
             a: 0,
             x: 0,
@@ -1636,20 +1637,28 @@ impl Cpu {
             //
             opcodes::NOP_EA => instructions::nop(self, AddressingMode::Implied),
 
-            _ => unimplemented!(),
+            _ => unimplemented!("opcode: {:02x} is not implemented", opcode),
         }
     }
 
-    fn run(&mut self) {
+    pub fn run(&mut self) {
         loop {
+            println!(": pc: 0x{:04x}/{}    opcode: {:02x}", self.pc, self.pc, self.memory[self.pc as usize]);
+            if self.pc == 0x0606 {
+                self._dump_memory();
+            }
             self.step();
         }
     }
 
-    fn patch_memory(&mut self, offset: usize, bytes: &[u8]) {
+    pub fn patch_memory(&mut self, offset: usize, bytes: &[u8]) {
         for (idx, b) in bytes.iter().enumerate() {
             self.memory[offset + idx] = *b;
         }
+    }
+
+    pub fn update_pc(&mut self, new_pc: u16) {
+        self.pc = new_pc;
     }
 }
 
