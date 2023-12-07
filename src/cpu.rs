@@ -1,7 +1,7 @@
 /** USEFUL LINKS
     https://www.pagetable.com/c64ref/6502/?tab=2
     http://www.emulator101.com/6502-addressing-modes.html
-    https://www.masswerk.at/6502/6502_instruction_set.html#SBC
+    https://www.masswerk.at/6502/6502_instruction_set.html
     https://web.archive.org/web/20221112230813if_/http://archive.6502.org/books/mcs6500_family_programming_manual.pdf
 */
 
@@ -68,8 +68,7 @@ mod Flags {
     pub(crate) const C_Carry: u8 = 0x01;
 }
 
-#[allow(dead_code)] // FIXME: remove this directive
-#[derive(PartialEq)]
+#[derive(PartialEq, Copy, Clone)]
 pub enum AddressingMode {
     Implied,
     Accumulator,
@@ -86,8 +85,6 @@ pub enum AddressingMode {
     Relative, // ???
 }
 
-// FIXME: remove this
-#[allow(dead_code)]
 mod opcodes {
     // load
     pub const LDA_A9: u8 = 0xA9;
