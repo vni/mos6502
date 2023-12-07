@@ -1170,9 +1170,9 @@ impl Cpu {
             a: 0,
             x: 0,
             y: 0,
-            pc: 0,
-            s: 0xff,
-            p: 0,
+            pc: 0, // FIXME: memory[0xFFFC-0xFFFD]
+            s: 0xfd,
+            p: Flags::I_InterruptDisable, // FIXME: what is the value of initial flags??
 
             memory: [0; MEM_SZ],
         }
@@ -1369,9 +1369,15 @@ impl Cpu {
         self.a = 0;
         self.x = 0;
         self.y = 0;
-        self.pc = 0;
-        self.s = 0xff;
-        self.p = 0;
+        self.s = 0xfd; // 0xff;
+        self.p = Flags::I_InterruptDisable;
+        self.pc = self.read_mem_u16(0xfffc);
+    }
+
+    fn read_mem_u16(&self, addr: usize) -> u16 {
+        let lo = self.memory[addr] as u16;
+        let hi = (self.memory[addr+1] as u16) << 8;
+        hi | lo
     }
 
     fn step(&mut self) {
