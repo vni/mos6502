@@ -278,6 +278,56 @@ mod opcodes {
 
     // nop
     pub const NOP_EA: u8 = 0xEA;
+    // undocumented nops
+    pub const NOP_1A: u8 = 0x1A;
+    pub const NOP_3A: u8 = 0x3A;
+    pub const NOP_5A: u8 = 0x5A;
+    pub const NOP_7A: u8 = 0x7A;
+    pub const NOP_DA: u8 = 0xDA;
+    pub const NOP_FA: u8 = 0xFA;
+    pub const NOP_80: u8 = 0x80;
+    pub const NOP_82: u8 = 0x82;
+    pub const NOP_89: u8 = 0x89;
+    pub const NOP_C2: u8 = 0xC2;
+    pub const NOP_E2: u8 = 0xE2;
+    pub const NOP_0C: u8 = 0x0C;
+    pub const NOP_1C: u8 = 0x1C;
+    pub const NOP_3C: u8 = 0x3C;
+    pub const NOP_5C: u8 = 0x5C;
+    pub const NOP_7C: u8 = 0x7C;
+    pub const NOP_DC: u8 = 0xDC;
+    pub const NOP_FC: u8 = 0xFC;
+    pub const NOP_04: u8 = 0x04;
+    pub const NOP_44: u8 = 0x44;
+    pub const NOP_64: u8 = 0x64;
+    pub const NOP_14: u8 = 0x14;
+    pub const NOP_34: u8 = 0x34;
+    pub const NOP_54: u8 = 0x54;
+    pub const NOP_74: u8 = 0x74;
+    pub const NOP_D4: u8 = 0xD4;
+    pub const NOP_F4: u8 = 0xF4;
+
+    // undocumented
+    pub const RRA_6F: u8 = 0x6F;
+    pub const RRA_7F: u8 = 0x7F;
+    pub const RRA_7B: u8 = 0x7B;
+    pub const RRA_67: u8 = 0x67;
+    pub const RRA_77: u8 = 0x77;
+    pub const RRA_63: u8 = 0x63;
+    pub const RRA_73: u8 = 0x73;
+
+    pub const JAM_02: u8 = 0x02;
+    pub const JAM_12: u8 = 0x12;
+    pub const JAM_22: u8 = 0x22;
+    pub const JAM_32: u8 = 0x32;
+    pub const JAM_42: u8 = 0x42;
+    pub const JAM_52: u8 = 0x52;
+    pub const JAM_62: u8 = 0x62;
+    pub const JAM_72: u8 = 0x72;
+    pub const JAM_92: u8 = 0x92;
+    pub const JAM_B2: u8 = 0xB2;
+    pub const JAM_D2: u8 = 0xD2;
+    pub const JAM_F2: u8 = 0xF2;
 }
 
 fn addressing_mode_pc_advance(mode: AddressingMode) -> u16 {
@@ -632,6 +682,10 @@ mod instructions {
                 AddressingMode::AbsoluteX => cpu._absolute_x(), // ROR $nnnn,X
                 AddressingMode::ZeroPage => cpu._zero_page(), // ROR $nn
                 AddressingMode::ZeroPageX => cpu._zero_page_x(), // ROR $nn,X
+
+                // this instructions is just because of undocumented RRA
+                AddressingMode::ZeroPageIndirectY => cpu._zero_page_indirect_y(),
+
                 _ => unimplemented!("bad addressing mode for the ROR instruction"),
             };
 
@@ -1157,6 +1211,19 @@ mod instructions {
     //
     pub fn nop(_cpu: &mut Cpu, _mode: AddressingMode) {
         // ;
+    }
+
+    pub fn rra(cpu: &mut Cpu, mode: AddressingMode, _cycles: usize) {
+        ror(cpu, mode);
+        adc(cpu, mode);
+    }
+
+    pub fn jam(cpu: &mut Cpu, _mode: AddressingMode, _cycles: usize) {
+    /* This undocumented instruction stops execution.
+     * The microprocessor will not fetch further instructions,
+     * and will neither handle IRQs nor NMIs.
+     * It will handle a RESET though. */
+        cpu.halted = true;
     }
 }
 
