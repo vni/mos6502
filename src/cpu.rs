@@ -2915,47 +2915,310 @@ mod tests {
     //
     // SBC
     //
-    /*
+    // FIXME: Add decimal mode testing
     #[test]
-    fn test_sbc_e9() {
-        unimplemented!();
+    fn test_sbc_e9() { // SBC #$nn
+        fn _t(a: u8, v: u8, carry: bool, exp_a: u8, exp_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            cpu.update_carry(carry);
+
+            let mut mem = [0u8; MEM_SZ];
+            mem[0] = SBC_E9;
+            mem[1] = v;
+            cpu.patch_memory(0, &mem);
+
+            cpu.step();
+
+            assert_eq!(cpu.a, exp_a);
+            assert_eq!(cpu.p, exp_flags);
+        }
+
+        //   a       v  carry  exp_a  flags
+        _t(120,     12,  true,   107, 0);
+        _t(  0,      0, false,     0, Z_Zero);
+        _t(  0,      0,  true,   255, N_Negative|C_Carry);
+        _t(  3,      0, false,     3, 0);
+        _t(  4,      0,  true,     3, 0);
+        _t(  4,      3,  true,     0, Z_Zero);
+        _t(180,    120, false,    60, 0);
+        _t(180,    120,  true,    59, 0);
+        _t(100,    101, false,   255, N_Negative|C_Carry);
+        _t(255,    255,  true,   255, N_Negative|C_Carry);
+        _t(128,    128, false,     0, Z_Zero);
+        _t(128,    128,  true,   255, N_Negative|C_Carry);
+
+        // FIXME: test for overflows
     }
 
     #[test]
-    fn test_sbc_ed() {
-        unimplemented!();
+    fn test_sbc_ed() { // SBC $nnnn
+        fn _t(addr: usize, a: u8, v: u8, carry: bool, exp_a: u8, exp_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            cpu.update_carry(carry);
+
+            let mut mem = [0u8; MEM_SZ];
+            mem[0] = SBC_ED;
+            mem[1] = addr as u8;
+            mem[2] = (addr >> 8) as u8;
+            mem[addr] = v;
+            cpu.patch_memory(0, &mem);
+
+            cpu.step();
+
+            assert_eq!(cpu.a, exp_a);
+            assert_eq!(cpu.p, exp_flags);
+        }
+
+        //   addr    a       v  carry  exp_a  flags
+        _t(0x1024, 120,     12,  true,   107, 0);
+        _t(0x8060,   0,      0, false,     0, Z_Zero);
+        _t(0x0512,   0,      0,  true,   255, N_Negative|C_Carry);
+        _t(0x8000,   3,      0, false,     3, 0);
+        _t(0xAAAA,   4,      0,  true,     3, 0);
+        _t(0x2828,   4,      3,  true,     0, Z_Zero);
+        _t(0x7373, 180,    120, false,    60, 0);
+        _t(0x1234, 180,    120,  true,    59, 0);
+        _t(0x0060, 100,    101, false,   255, N_Negative|C_Carry);
+        _t(0x00ff, 255,    255,  true,   255, N_Negative|C_Carry);
+        _t(0x0080, 128,    128, false,     0, Z_Zero);
+        _t(0x9030, 128,    128,  true,   255, N_Negative|C_Carry);
+
+        // FIXME: test for overflows
     }
 
     #[test]
-    fn test_sbc_fd() {
-        unimplemented!();
+    fn test_sbc_fd() { // SBC $nnnn,X
+        fn _t(addr: usize, x: u8, addr2: usize, a: u8, v: u8, carry: bool, exp_a: u8, exp_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            cpu.x = x;
+            cpu.update_carry(carry);
+
+            let mut mem = [0u8; MEM_SZ];
+            mem[0] = SBC_FD;
+            mem[1] = addr as u8;
+            mem[2] = (addr >> 8) as u8;
+            mem[addr2] = v;
+            cpu.patch_memory(0, &mem);
+
+            cpu.step();
+
+            assert!(cpu.a == exp_a);
+            assert!(cpu.p == exp_flags);
+        }
+
+        //   addr     x   addr2,   a       v  carry  exp_a  flags
+        _t(0x1024, 0x20, 0x1044, 120,     12,  true,   107, 0);
+        _t(0x8060, 0x44, 0x80a4,   0,      0, false,     0, Z_Zero);
+        _t(0x0512, 0x00, 0x0512,   0,      0,  true,   255, N_Negative|C_Carry);
+        _t(0x8000, 0x13, 0x8013,   3,      0, false,     3, 0);
+        _t(0xAAAA, 0x1f, 0xaac9,   4,      0,  true,     3, 0);
+        _t(0x2828, 0x0b, 0x2833,   4,      3,  true,     0, Z_Zero);
+        _t(0x7373, 0x15, 0x7388, 180,    120, false,    60, 0);
+        _t(0x1234, 0x20, 0x1254, 180,    120,  true,    59, 0);
+        _t(0x0060, 0x33, 0x0093, 100,    101, false,   255, N_Negative|C_Carry);
+        _t(0x00ff, 0x14, 0x0113, 255,    255,  true,   255, N_Negative|C_Carry);
+        _t(0x0080, 0x44, 0x00c4, 128,    128, false,     0, Z_Zero);
+        _t(0x9030, 0x11, 0x9041, 128,    128,  true,   255, N_Negative|C_Carry);
+
+        // FIXME: test for overflows
     }
 
     #[test]
-    fn test_sbc_f9() {
-        unimplemented!();
+    fn test_sbc_f9() { // SBC $nnnn,Y
+        fn _t(addr: usize, y: u8, addr2: usize, a: u8, v: u8, carry: bool, exp_a: u8, exp_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            cpu.y = y;
+            cpu.update_carry(carry);
+
+            let mut mem = [0u8; MEM_SZ];
+            mem[0] = SBC_F9;
+            mem[1] = addr as u8;
+            mem[2] = (addr >> 8) as u8;
+            mem[addr2] = v;
+            cpu.patch_memory(0, &mem);
+
+            cpu.step();
+
+            assert!(cpu.a == exp_a);
+            assert!(cpu.p == exp_flags);
+        }
+
+        //   addr     y   addr2,   a       v  carry  exp_a  flags
+        _t(0x1024, 0x20, 0x1044, 120,     12,  true,   107, 0);
+        _t(0x8060, 0x44, 0x80a4,   0,      0, false,     0, Z_Zero);
+        _t(0x0512, 0x00, 0x0512,   0,      0,  true,   255, N_Negative|C_Carry);
+        _t(0x8000, 0x13, 0x8013,   3,      0, false,     3, 0);
+        _t(0xAAAA, 0x1f, 0xaac9,   4,      0,  true,     3, 0);
+        _t(0x2828, 0x0b, 0x2833,   4,      3,  true,     0, Z_Zero);
+        _t(0x7373, 0x15, 0x7388, 180,    120, false,    60, 0);
+        _t(0x1234, 0x20, 0x1254, 180,    120,  true,    59, 0);
+        _t(0x0060, 0x33, 0x0093, 100,    101, false,   255, N_Negative|C_Carry);
+        _t(0x00ff, 0x14, 0x0113, 255,    255,  true,   255, N_Negative|C_Carry);
+        _t(0x0080, 0x44, 0x00c4, 128,    128, false,     0, Z_Zero);
+        _t(0x9030, 0x11, 0x9041, 128,    128,  true,   255, N_Negative|C_Carry);
+
+        // FIXME: test for overflows
     }
 
     #[test]
-    fn test_sbc_e5() {
-        unimplemented!();
+    fn test_sbc_e5() { // SBC $nn
+        fn _t(addr: usize, a: u8, v: u8, carry: bool, exp_a: u8, exp_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            cpu.update_carry(carry);
+
+            let mut mem = [0u8; MEM_SZ];
+            mem[0] = SBC_E5;
+            mem[1] = addr as u8;
+            mem[addr] = v;
+            cpu.patch_memory(0, &mem);
+
+            cpu.step();
+
+            assert!(cpu.a == exp_a);
+            assert!(cpu.p == exp_flags);
+        }
+
+        //   addr    a       v  carry  exp_a  flags
+        _t(0x0024, 120,     12,  true,   107, 0);
+        _t(0x0060,   0,      0, false,     0, Z_Zero);
+        _t(0x0012,   0,      0,  true,   255, N_Negative|C_Carry);
+        _t(0x0020,   3,      0, false,     3, 0);
+        _t(0x00AA,   4,      0,  true,     3, 0);
+        _t(0x0028,   4,      3,  true,     0, Z_Zero);
+        _t(0x0073, 180,    120, false,    60, 0);
+        _t(0x0034, 180,    120,  true,    59, 0);
+        _t(0x0060, 100,    101, false,   255, N_Negative|C_Carry);
+        _t(0x00ff, 255,    255,  true,   255, N_Negative|C_Carry);
+        _t(0x0080, 128,    128, false,     0, Z_Zero);
+        _t(0x0030, 128,    128,  true,   255, N_Negative|C_Carry);
+
+        // FIXME: test for overflows
     }
 
     #[test]
-    fn test_sbc_f5() {
-        unimplemented!();
+    fn test_sbc_f5() { // SBC $nn,X
+        fn _t(addr: usize, x: u8, addr2: usize, a: u8, v: u8, carry: bool, exp_a: u8, exp_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            cpu.x = x;
+            cpu.update_carry(carry);
+
+            let mut mem = [0u8; MEM_SZ];
+            mem[0] = SBC_F5;
+            mem[1] = addr as u8;
+            mem[addr2] = v;
+            cpu.patch_memory(0, &mem);
+
+            cpu.step();
+
+            assert!(cpu.a == exp_a);
+            assert!(cpu.p == exp_flags);
+        }
+
+        //   addr     x   addr2    a       v  carry  exp_a  flags
+        _t(0x0024, 0x00, 0x0024, 120,     12,  true,   107, 0);
+        _t(0x0060, 0x13, 0x0073,   0,      0, false,     0, Z_Zero);
+        _t(0x0012, 0x22, 0x0034,   0,      0,  true,   255, N_Negative|C_Carry);
+        _t(0x0020, 0x05, 0x0025,   3,      0, false,     3, 0);
+        _t(0x00AA, 0xFF, 0x0099,   4,      0,  true,     3, 0);
+        _t(0x0028, 0x10, 0x0038,   4,      3,  true,     0, Z_Zero);
+        _t(0x0073, 0x14, 0x0087, 180,    120, false,    60, 0);
+        _t(0x0034, 0x01, 0x0035, 180,    120,  true,    59, 0);
+        _t(0x0060, 0x60, 0x00C0, 100,    101, false,   255, N_Negative|C_Carry);
+        _t(0x00ff, 0x22, 0x0021, 255,    255,  true,   255, N_Negative|C_Carry);
+        _t(0x0080, 0x88, 0x0008, 128,    128, false,     0, Z_Zero);
+        _t(0x0030, 0x05, 0x0035, 128,    128,  true,   255, N_Negative|C_Carry);
+
+        // FIXME: test for overflows
     }
 
     #[test]
-    fn test_sbc_e1() {
-        unimplemented!();
+    fn test_sbc_e1() { // SBC ($nn,X)
+        fn _t(addr: usize, x: u8, addr2: usize, addr3: usize, a: u8, v: u8, carry: bool, exp_a: u8, exp_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            cpu.x = x;
+            cpu.update_carry(carry);
+
+            let mut mem = [0u8; MEM_SZ];
+            mem[0] = SBC_E1;
+            mem[1] = addr as u8;
+            assert!(addr2 & !0xff == 0); // addr2 should be in zero page
+            // FIXME: what if addr2 is 0xff ??? How 6502 should work ???
+            mem[addr2] = addr3 as u8;
+            mem[(addr2+1) & 0xff] = (addr3 >> 8) as u8;
+            mem[addr3] = v;
+            cpu.patch_memory(0, &mem);
+
+            cpu.step();
+
+            assert!(cpu.a == exp_a);
+            assert!(cpu.p == exp_flags);
+        }
+
+        //   addr     x   addr2   addr3    a       v  carry  exp_a  flags
+        _t(0x0024, 0x00, 0x0024, 0x8080, 120,     12,  true,   107, 0);
+        _t(0x0060, 0x13, 0x0073, 0x0505,   0,      0, false,     0, Z_Zero);
+        _t(0x0012, 0x22, 0x0034, 0xaaaa,   0,      0,  true,   255, N_Negative|C_Carry);
+        _t(0x0020, 0x05, 0x0025, 0xbbbb,   3,      0, false,     3, 0);
+        _t(0x00AA, 0xff, 0x00a9, 0x22aa,   4,      0,  true,     3, 0);
+        _t(0x0028, 0x10, 0x0038, 0xdddd,   4,      3,  true,     0, Z_Zero);
+        _t(0x0073, 0x14, 0x0087, 0xabcd, 180,    120, false,    60, 0);
+        _t(0x0034, 0x01, 0x0035, 0xbcde, 180,    120,  true,    59, 0);
+        _t(0x0060, 0x60, 0x00c0, 0xcdef, 100,    101, false,   255, N_Negative|C_Carry);
+        _t(0x00ff, 0x22, 0x0021, 0xdefa, 255,    255,  true,   255, N_Negative|C_Carry);
+        _t(0x0080, 0x88, 0x0008, 0xefab, 128,    128, false,     0, Z_Zero);
+        _t(0x0030, 0x05, 0x0035, 0xfabc, 128,    128,  true,   255, N_Negative|C_Carry);
+
+        // FIXME: test for overflows
     }
 
     #[test]
-    fn test_sbc_f1() {
-        unimplemented!();
+    fn test_sbc_f1() { // SBC ($nn),Y
+        fn _t(addr: usize, addr2: usize, y: u8, addr3: usize, a: u8, v: u8, carry: bool, exp_a: u8, exp_flags: u8) {
+            let mut cpu = Cpu::new();
+            cpu.a = a;
+            cpu.y = y;
+            cpu.update_carry(carry);
+
+            let mut mem = [0u8; MEM_SZ];
+            mem[0] = SBC_F1;
+            mem[1] = addr as u8;
+            mem[addr] = addr2 as u8;
+            mem[(addr + 1) & 0xff] = (addr2 >> 8) as u8;
+            mem[addr3] = v;
+            cpu.patch_memory(0, &mem);
+
+            cpu.step();
+            cpu._dump_memory();
+
+            println!("cpu.a: {}", cpu.a);
+            println!("exp_a: {}", exp_a);
+            assert!(cpu.a == exp_a);
+            assert!(cpu.p == exp_flags);
+        }
+
+        //   addr   addr2     y   addr3    a       v  carry  exp_a  flags
+        _t(0x0024, 0x4010, 0x00, 0x4010, 120,     12,  true,   107, 0);
+        _t(0x0060, 0x4000, 0x13, 0x4013,   0,      0, false,     0, Z_Zero);
+        _t(0x0012, 0x4000, 0x22, 0x4022,   0,      0,  true,   255, N_Negative|C_Carry);
+        _t(0x0020, 0x4000, 0x05, 0x4005,   3,      0, false,     3, 0);
+        _t(0x00AA, 0x4000, 0xff, 0x40ff,   4,      0,  true,     3, 0);
+        _t(0x0028, 0x4000, 0x10, 0x4010,   4,      3,  true,     0, Z_Zero);
+        _t(0x0073, 0x4000, 0x14, 0x4014, 180,    120, false,    60, 0);
+        _t(0x0034, 0x40ff, 0x01, 0x4100, 180,    120,  true,    59, 0);
+        _t(0x0060, 0x40ff, 0x60, 0x415f, 100,    101, false,   255, N_Negative|C_Carry);
+        _t(0x00f0, 0x40ff, 0x22, 0x4121, 255,    255,  true,   255, N_Negative|C_Carry);
+        _t(0x0080, 0x40ff, 0x88, 0x4187, 128,    128, false,     0, Z_Zero);
+        _t(0x0030, 0x40ff, 0x05, 0x4104, 128,    128,  true,   255, N_Negative|C_Carry);
+
+        // FIXME: test for overflows
     }
-    */
 
     //
     // CMP
