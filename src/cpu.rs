@@ -31,6 +31,8 @@ const MEM_SZ: usize = 65_536;
 
 #[derive(Debug, PartialEq)]
 pub struct Cpu {
+    halted: bool,
+
     a: u8,   // accumulator
     x: u8,   // x index register
     y: u8,   // y index register
@@ -1163,6 +1165,8 @@ mod instructions {
 impl Cpu {
     pub fn new() -> Cpu {
         Cpu {
+            halted: false,
+
             a: 0,
             x: 0,
             y: 0,
@@ -1360,6 +1364,8 @@ impl Cpu {
     }
 
     fn reset(&mut self) {
+        self.halted = false;
+
         self.a = 0;
         self.x = 0;
         self.y = 0;
@@ -1633,17 +1639,95 @@ impl Cpu {
             // NOP
             //
             opcodes::NOP_EA => instructions::nop(self, AddressingMode::Implied),
+            // undocumented opcodes
+            // https://www.masswerk.at/6502/6502_instruction_set.html#NOPs
+            //opc	addressing	bytes	cycles
+            // 1A	implied	    1	2  
+            // 3A	implied	    1	2  
+            // 5A	implied	    1	2  
+            // 7A	implied	    1	2  
+            // DA	implied	    1	2  
+            // FA	implied	    1	2  
+            opcodes::NOP_1A => instructions::nop(self, AddressingMode::Implied),
+            opcodes::NOP_3A => instructions::nop(self, AddressingMode::Implied),
+            opcodes::NOP_5A => instructions::nop(self, AddressingMode::Implied),
+            opcodes::NOP_7A => instructions::nop(self, AddressingMode::Implied),
+            opcodes::NOP_DA => instructions::nop(self, AddressingMode::Implied),
+            opcodes::NOP_FA => instructions::nop(self, AddressingMode::Implied),
+            // 80	immediate	2	2  
+            // 82	immediate	2	2  
+            // 89	immediate	2	2  
+            // C2	immediate	2	2  
+            // E2	immediate	2	2  
+            opcodes::NOP_80 => instructions::nop(self, AddressingMode::Immediate),
+            opcodes::NOP_82 => instructions::nop(self, AddressingMode::Immediate),
+            opcodes::NOP_89 => instructions::nop(self, AddressingMode::Immediate),
+            opcodes::NOP_C2 => instructions::nop(self, AddressingMode::Immediate),
+            opcodes::NOP_E2 => instructions::nop(self, AddressingMode::Immediate),
+            // 04	zeropage	2	3  
+            // 44	zeropage	2	3  
+            // 64	zeropage	2	3  
+            opcodes::NOP_04 => instructions::nop(self, AddressingMode::ZeroPage),
+            opcodes::NOP_44 => instructions::nop(self, AddressingMode::ZeroPage),
+            opcodes::NOP_64 => instructions::nop(self, AddressingMode::ZeroPage),
+            // 14	zeropage,X	2	4  
+            // 34	zeropage,X	2	4  
+            // 54	zeropage,X	2	4  
+            // 74	zeropage,X	2	4  
+            // D4	zeropage,X	2	4  
+            // F4	zeropage,X	2	4  
+            opcodes::NOP_14 => instructions::nop(self, AddressingMode::ZeroPageX),
+            opcodes::NOP_34 => instructions::nop(self, AddressingMode::ZeroPageX),
+            opcodes::NOP_54 => instructions::nop(self, AddressingMode::ZeroPageX),
+            opcodes::NOP_74 => instructions::nop(self, AddressingMode::ZeroPageX),
+            opcodes::NOP_D4 => instructions::nop(self, AddressingMode::ZeroPageX),
+            opcodes::NOP_F4 => instructions::nop(self, AddressingMode::ZeroPageX),
+            // 0C	absolute	3	4  
+            opcodes::NOP_0C => instructions::nop(self, AddressingMode::Absolute),
+            // 1C	absolut,X	3	4* 
+            // 3C	absolut,X	3	4* 
+            // 5C	absolut,X	3	4* 
+            // 7C	absolut,X	3	4* 
+            // DC	absolut,X	3	4* 
+            // FC	absolut,X	3	4*
+            opcodes::NOP_1C => instructions::nop(self, AddressingMode::AbsoluteX),
+            opcodes::NOP_3C => instructions::nop(self, AddressingMode::AbsoluteX),
+            opcodes::NOP_5C => instructions::nop(self, AddressingMode::AbsoluteX),
+            opcodes::NOP_7C => instructions::nop(self, AddressingMode::AbsoluteX),
+            opcodes::NOP_DC => instructions::nop(self, AddressingMode::AbsoluteX),
+            opcodes::NOP_FC => instructions::nop(self, AddressingMode::AbsoluteX),
+
+            // other undocumented instructions
+            opcodes::RRA_6F => instructions::rra(self, AddressingMode::Absolute, 6),
+            opcodes::RRA_7F => instructions::rra(self, AddressingMode::AbsoluteX, 7),
+            opcodes::RRA_7B => instructions::rra(self, AddressingMode::AbsoluteY, 7),
+            opcodes::RRA_67 => instructions::rra(self, AddressingMode::ZeroPage, 5),
+            opcodes::RRA_77 => instructions::rra(self, AddressingMode::ZeroPageX, 6),
+            opcodes::RRA_63 => instructions::rra(self, AddressingMode::ZeroPageXIndirect, 8),
+            opcodes::RRA_73 => instructions::rra(self, AddressingMode::ZeroPageIndirectY, 8),
+
+                                                         // jam - halt - infinite number of cycles
+            opcodes::JAM_02 => instructions::jam(self, AddressingMode::Implied, !0),
+            opcodes::JAM_12 => instructions::jam(self, AddressingMode::Implied, !0),
+            opcodes::JAM_22 => instructions::jam(self, AddressingMode::Implied, !0),
+            opcodes::JAM_32 => instructions::jam(self, AddressingMode::Implied, !0),
+            opcodes::JAM_42 => instructions::jam(self, AddressingMode::Implied, !0),
+            opcodes::JAM_52 => instructions::jam(self, AddressingMode::Implied, !0),
+            opcodes::JAM_62 => instructions::jam(self, AddressingMode::Implied, !0),
+            opcodes::JAM_72 => instructions::jam(self, AddressingMode::Implied, !0),
+            opcodes::JAM_92 => instructions::jam(self, AddressingMode::Implied, !0),
+            opcodes::JAM_B2 => instructions::jam(self, AddressingMode::Implied, !0),
+            opcodes::JAM_D2 => instructions::jam(self, AddressingMode::Implied, !0),
+            opcodes::JAM_F2 => instructions::jam(self, AddressingMode::Implied, !0),
 
             _ => unimplemented!("opcode: {:02x} is not implemented", opcode),
         }
     }
 
     pub fn run(&mut self) {
-        loop {
+        self._dump_memory();
+        while !self.halted {
             println!(": pc: 0x{:04x}/{}    opcode: {:02x}", self.pc, self.pc, self.memory[self.pc as usize]);
-            if self.pc == 0x0606 {
-                self._dump_memory();
-            }
             self.step();
         }
     }
