@@ -2875,7 +2875,6 @@ mod tests {
     #[test]
     fn test_adc_71() { // ADC ($nn),Y
         fn _t(addr: usize, addr2: usize, y: u8, addr3: usize, a: u8, v: u8, carry: bool, exp_a: u8, exp_flags: u8) {
-            println!("addr:0x{addr:04x}  addr2:0x{addr2:04x}  y:{y:02x}  addr3:0x{addr3:04x}  a:{a}  v:{v}  carry:{carry}  exp_a:{exp_a}  exp_flags: {exp_flags:02x}");
             let mut cpu = Cpu::new();
             cpu.a = a;
             cpu.y = y;
@@ -2892,8 +2891,6 @@ mod tests {
             cpu.step();
             cpu._dump_memory();
 
-            println!("cpu.a: {}", cpu.a);
-            println!("exp_a: {}", exp_a);
             assert!(cpu.a == exp_a);
             assert!(cpu.p == exp_flags);
         }
